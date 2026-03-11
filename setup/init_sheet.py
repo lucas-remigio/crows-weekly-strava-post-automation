@@ -52,6 +52,7 @@ HEADER = [
     "Total Anual KM",
     "Objetivo Anual KM",
     "Texto do Post",
+    "Executado Em",
 ]
 
 
@@ -96,7 +97,18 @@ def main():
         print(f"Sheet already has {len(existing)} row(s). Header will be skipped.")
     else:
         ws.append_row(HEADER)
-        print("Header row written.")
+        ws.format(
+            f"A1:{chr(ord('A') + len(HEADER) - 1)}1",
+            {
+                "backgroundColor": {"red": 0.18, "green": 0.18, "blue": 0.18},
+                "textFormat": {
+                    "bold": True,
+                    "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                },
+                "horizontalAlignment": "CENTER",
+            },
+        )
+        print("Header row written and formatted.")
 
     if args.week is not None and args.annual_total is not None:
         from src import config

@@ -10,7 +10,7 @@ Sheet layout (set up by setup/init_sheet.py):
 
 import json
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 import gspread
@@ -32,6 +32,7 @@ HEADER_ROW = [
     "Total Anual KM",
     "Objetivo Anual KM",
     "Texto do Post",
+    "Executado Em",
 ]
 
 
@@ -110,6 +111,7 @@ def append_weekly_entry(
         round(annual_km, 2),
         config.ANNUAL_GOAL_KM,
         post_text,
+        datetime.utcnow().strftime("%d-%m-%Y %H:%M UTC"),
     ]
 
     ws.append_row(row, value_input_option="USER_ENTERED")
@@ -117,10 +119,21 @@ def append_weekly_entry(
 
 
 def ensure_header_exists() -> None:
-    """Write the header row if the sheet is completely empty."""
+    """Write and format the header row if the sheet is completely empty."""
     ws = _get_worksheet()
     first_cell = ws.acell("A1").value
 
     if not first_cell:
         ws.append_row(HEADER_ROW)
-        logger.info("Header row written to sheet.")
+        ws.format(
+            f"A1:{chr(ord('A') + len(HEADER_ROW) - 1)}1",
+            {
+                "backgroundColor": {"red": 0.18, "green": 0.18, "blue": 0.18},
+                "textFormat": {
+                    "bold": True,
+                    "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                },
+                "horizontalAlignment": "CENTER",
+            },
+        )
+        logger.info("Header row written and formatted.")
