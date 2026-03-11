@@ -21,10 +21,18 @@ STRAVA_CLUB_ID: str = os.getenv("STRAVA_CLUB_ID", "")
 GOOGLE_SERVICE_ACCOUNT_JSON: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
 GOOGLE_SHEET_ID: str = os.getenv("GOOGLE_SHEET_ID", "")
 
-# ── WhatsApp (CallMeBot) ──────────────────────────────────────────────────────
-# Phone number with country code, no + sign. E.g. 351912345678
-CALLMEBOT_PHONE: str = os.getenv("CALLMEBOT_PHONE", "")
-CALLMEBOT_API_KEY: str = os.getenv("CALLMEBOT_API_KEY", "")
+# ── Telegram ──────────────────────────────────────────────────────────────────
+# Bot token from @BotFather.
+TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+# Comma-separated list of chat IDs to send the post to.
+# Group IDs are negative (e.g. -123456789); personal chats are positive.
+# E.g.: -123456789,987654321
+TELEGRAM_CHAT_IDS: list[str] = [
+    cid.strip()
+    for cid in os.getenv("TELEGRAM_CHAT_IDS", "").split(",")
+    if cid.strip()
+]
 
 
 _REQUIRED_KEYS = [
@@ -34,8 +42,8 @@ _REQUIRED_KEYS = [
     "STRAVA_CLUB_ID",
     "GOOGLE_SERVICE_ACCOUNT_JSON",
     "GOOGLE_SHEET_ID",
-    "CALLMEBOT_PHONE",
-    "CALLMEBOT_API_KEY",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_IDS",
 ]
 
 

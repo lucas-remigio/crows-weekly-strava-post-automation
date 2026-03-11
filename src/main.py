@@ -22,7 +22,7 @@ from datetime import date, timedelta
 from . import config
 from . import strava_client
 from . import sheets_client
-from . import whatsapp_client
+from . import telegram_client
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,16 +54,17 @@ def build_post_text(
     goal_km: int,
     total_weeks: int,
 ) -> str:
-    percentage = (annual_km / goal_km * 100) if goal_km else 0
+    annual_pct = (annual_km / goal_km * 100) if goal_km else 0
+    week_pct = (week_number / total_weeks * 100) if total_weeks else 0
     on_pace_km = (goal_km / total_weeks) * week_number
 
     lines = [
-        f"Semana {week_number}/{total_weeks}",
+        f"Semana {week_number}/{total_weeks} ({week_pct:.1f}%)",
         f"",
         f"Total semanal: {weekly_km:.1f} km",
-        f"Total anual: {annual_km:.1f} / {goal_km} km ({percentage:.1f}%)",
+        f"Total anual: {annual_km:.1f} / {goal_km} km ({annual_pct:.1f}%)",
         f"",
-        f"Ritmo para o objetivo: {on_pace_km:.0f} km",
+        f"Por esta altura devíamos ter feito {on_pace_km:.0f} km",
     ]
 
     if annual_km >= on_pace_km:
@@ -71,7 +72,7 @@ def build_post_text(
         lines.append(f"Estamos +{diff:.1f} km acima do ritmo. Muito bom!")
     else:
         diff = on_pace_km - annual_km
-        lines.append(f"Estamos -{diff:.1f} km abaixo do ritmo. Vamos la!")
+        lines.append(f"Estamos -{diff:.1f} km abaixo do ritmo. Vamos lá!")
 
     return "\n".join(lines)
 
@@ -141,7 +142,7 @@ def run(dry_run: bool = False) -> None:
     print("=" * 50 + "\n")
 
     if dry_run:
-        logger.info("DRY RUN — skipping Sheets write and WhatsApp send.")
+        logger.info("DRY RUN — skipping Sheets write and Telegram send.")
         return
 
     # ── Step 4: Write to Google Sheets ────────────────────────────────────────
@@ -155,13 +156,8 @@ def run(dry_run: bool = False) -> None:
         post_text=post_text,
     )
 
-    # ── Step 5: Send WhatsApp message ─────────────────────────────────────────
-    try:
-        whatsapp_client.send_whatsapp_message(post_text)
-        logger.info("WhatsApp message sent successfully.")
-    except Exception as exc:
-        # Don't fail the whole run if WhatsApp delivery fails
-        logger.error("Failed to send WhatsApp message: %s", exc)
+    # ── Step 5: Send Telegram message ────────────────────────────────────────
+    telegram_client.send_message(post_text)
 
     logger.info("Done.")
 
@@ -173,7 +169,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Fetch Strava data and print the post, but skip Sheets and WhatsApp.",
+        help="Fetch Strava data and print the post, but skip Sheets and Telegram.",
     )
     args = parser.parse_args()
     run(dry_run=args.dry_run)

@@ -8,7 +8,7 @@ Every Sunday night a GitHub Action:
 2. Sums the total distance
 3. Adds it to a running annual total stored in Google Sheets
 4. Generates a formatted post text
-5. Sends it to a WhatsApp group via CallMeBot
+5. Sends it to Telegram via a bot
 
 Your only manual step: **copy the text and paste it into the Strava club post**.
 
@@ -90,12 +90,40 @@ python setup/init_sheet.py --week 5 --annual-total 670
 
 ---
 
-### 6. Set up WhatsApp (CallMeBot)
+### 6. Set up Telegram
 
-1. Add **+34 644 59 78 12** to your WhatsApp contacts as "CallMeBot".
-2. Send it this exact message: `I allow callmebot to send me messages`
-3. You will receive a reply with your personal API key.
-4. Set `CALLMEBOT_PHONE` (your number with country code, no `+`) and `CALLMEBOT_API_KEY` in `.env`.
+You already have the bot token. Now you just need the chat ID(s) of where to send the message.
+
+#### 6a. Add the bot to your chat
+
+- **Personal chat:** Open Telegram, search for your bot by username, and press **Start**.
+- **Group:** Open the group → Add members → search for your bot and add it.
+
+#### 6b. Get the chat ID
+
+1. Send any message in the chat (or group) where the bot was added.
+2. Open this URL in your browser (replace with your actual token):
+   ```
+   https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
+   ```
+3. Find the `"chat"` object in the response:
+   ```json
+   "chat": { "id": -123456789, "type": "group" }
+   ```
+   That number is your chat ID. **Group IDs are negative**, personal chat IDs are positive.
+
+#### 6c. Set the values in `.env`
+
+```
+TELEGRAM_BOT_TOKEN=123456789:ABC-your-token-here
+TELEGRAM_CHAT_IDS=-123456789
+```
+
+To send to multiple chats (e.g. a group and your personal chat), separate them with a comma:
+
+```
+TELEGRAM_CHAT_IDS=-123456789,987654321
+```
 
 ---
 
@@ -114,8 +142,8 @@ Add these **Secrets** (sensitive values):
 | `STRAVA_CLUB_ID`              | Your club's numeric ID           |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Full JSON content (one line)     |
 | `GOOGLE_SHEET_ID`             | From the Sheet URL               |
-| `CALLMEBOT_PHONE`             | Your phone with country code     |
-| `CALLMEBOT_API_KEY`           | From CallMeBot WhatsApp reply    |
+| `TELEGRAM_BOT_TOKEN`          | From @BotFather                  |
+| `TELEGRAM_CHAT_IDS`           | Comma-separated chat IDs         |
 
 Add these **Variables** (non-sensitive config):
 
@@ -130,7 +158,7 @@ Add these **Variables** (non-sensitive config):
 ## Running locally
 
 ```bash
-# Full run (writes to Sheets, sends WhatsApp):
+# Full run (writes to Sheets, sends Telegram message):
 python -m src.main
 
 # Dry run (only fetches Strava, prints post text — safe for testing):
@@ -175,7 +203,7 @@ Customize the text in `src/main.py → build_post_text()`.
 │   ├── config.py                       # Reads all env vars
 │   ├── strava_client.py                # Strava API (token refresh + activities)
 │   ├── sheets_client.py                # Google Sheets read/write
-│   ├── whatsapp_client.py              # CallMeBot WhatsApp sender
+│   ├── telegram_client.py              # Telegram bot sender
 │   └── main.py                         # Orchestration & post generation
 ├── .env.example                        # Template — copy to .env
 └── requirements.txt
