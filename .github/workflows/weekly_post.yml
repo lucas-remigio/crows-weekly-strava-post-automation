@@ -1,0 +1,56 @@
+name: Weekly Strava Club Post
+
+on:
+  # Every Sunday at 23:00 UTC (midnight Portugal winter / 00:00 Portugal summer)
+  schedule:
+    - cron: "0 23 * * 0"
+
+  # Allow triggering manually from the GitHub Actions UI (useful for testing)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (fetch data and print post, skip Sheets & WhatsApp)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  weekly-post:
+    name: Generate and send weekly post
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run weekly post script
+        env:
+          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+          STRAVA_CLUB_ID: ${{ secrets.STRAVA_CLUB_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_API_KEY: ${{ secrets.CALLMEBOT_API_KEY }}
+          ANNUAL_GOAL_KM: ${{ vars.ANNUAL_GOAL_KM }}
+          TOTAL_WEEKS: ${{ vars.TOTAL_WEEKS }}
+          SPORT_TYPES: ${{ vars.SPORT_TYPES }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python -m src.main --dry-run
+          else
+            python -m src.main
+          fi

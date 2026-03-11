@@ -1,0 +1,13 @@
+.env
+*.pyc
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.DS_Store
+
+# Service account key files — never commit these
+*.json
+!.env.example
