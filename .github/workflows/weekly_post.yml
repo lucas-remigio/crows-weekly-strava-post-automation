@@ -48,7 +48,6 @@ jobs:
           ANNUAL_GOAL_KM: ${{ vars.ANNUAL_GOAL_KM }}
           TOTAL_WEEKS: ${{ vars.TOTAL_WEEKS }}
           SPORT_TYPES: ${{ vars.SPORT_TYPES }}
-          SHEET_PUBLIC_URL: ${{ vars.SHEET_PUBLIC_URL }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             python -m src.main --dry-run

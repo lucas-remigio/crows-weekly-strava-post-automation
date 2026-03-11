@@ -74,10 +74,6 @@ def build_post_text(
         diff = on_pace_km - annual_km
         lines.append(f"Estamos -{diff:.1f} km abaixo do ritmo. Vamos lá!")
 
-    if config.SHEET_PUBLIC_URL:
-        lines.append(f"")
-        lines.append(f"Histórico: {config.SHEET_PUBLIC_URL}")
-
     return "\n".join(lines)
 
 

@@ -43,7 +43,7 @@ python setup/get_strava_token.py
 
 A browser tab opens. Authorize the app. The script prints your `STRAVA_REFRESH_TOKEN`. Copy it into `.env`.
 
-> The script requests `activity:read` and `club:read` scopes.
+> The script requests `read` and `activity:read` scopes.
 
 ---
 
@@ -150,7 +150,7 @@ Add these **Variables** (non-sensitive config):
 | Variable         | Value                                   |
 | ---------------- | --------------------------------------- |
 | `ANNUAL_GOAL_KM` | `12000` (or your goal)                  |
-| `TOTAL_WEEKS`    | `52`                                    |
+| `TOTAL_WEEKS`    | `52` or `53` depending on the year      |
 | `SPORT_TYPES`    | Leave empty for all, or e.g. `Run,Walk` |
 
 ---
@@ -161,7 +161,7 @@ Add these **Variables** (non-sensitive config):
 # Full run (writes to Sheets, sends Telegram message):
 python -m src.main
 
-# Dry run (only fetches Strava, prints post text — safe for testing):
+# Dry run (fetches Strava + reads current Sheet total, prints post — skips write & Telegram):
 python -m src.main --dry-run
 ```
 
@@ -169,7 +169,7 @@ python -m src.main --dry-run
 
 ## Schedule
 
-The GitHub Action runs **every Sunday at 23:00 UTC** (midnight Portugal winter time, 00:00 Portugal summer time).
+The GitHub Action runs **every Sunday at 22:00 UTC** (midnight Portugal winter time, 23:00 Portugal summer time).
 
 You can also trigger it manually from the **Actions** tab → **Weekly Strava Club Post** → **Run workflow**.
 
@@ -178,13 +178,13 @@ You can also trigger it manually from the **Actions** tab → **Weekly Strava Cl
 ## Post format
 
 ```
-Semana 5/52
+Semana 11/53 (20.8%)
 
-Total semanal: 80.0 km
-Total anual: 750.0 / 12000 km (6.3%)
+Total semanal: 84.4 km
+Total anual: 1101.7 / 12000 km (9.2%)
 
-Ritmo para o objetivo: 1154 km
-Estamos -404.0 km abaixo do ritmo. Vamos la!
+Por esta altura devíamos ter feito 2491 km
+Estamos -1389.3 km abaixo do ritmo. Vamos lá!
 ```
 
 Customize the text in `src/main.py → build_post_text()`.
@@ -198,7 +198,8 @@ Customize the text in `src/main.py → build_post_text()`.
 ├── .github/workflows/weekly_post.yml   # GitHub Actions cron job
 ├── setup/
 │   ├── get_strava_token.py             # One-time OAuth helper
-│   └── init_sheet.py                   # One-time Sheet bootstrapper
+│   ├── init_sheet.py                   # One-time Sheet bootstrapper
+│   └── fetch_historical_km.py          # One-time: sum all km from Jan 1 to last week
 ├── src/
 │   ├── config.py                       # Reads all env vars
 │   ├── strava_client.py                # Strava API (token refresh + activities)
