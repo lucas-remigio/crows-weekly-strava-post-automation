@@ -1,9 +1,9 @@
 name: Weekly Strava Club Post
 
 on:
-  # Every Sunday at 23:00 UTC (midnight Portugal winter / 00:00 Portugal summer)
+  # Every Sunday at 22:00 UTC (midnight Portugal winter / 00:00 Portugal summer)
   schedule:
-    - cron: "0 23 * * 0"
+    - cron: "0 22 * * 0"
 
   # Allow triggering manually from the GitHub Actions UI (useful for testing)
   workflow_dispatch:
@@ -48,6 +48,7 @@ jobs:
           ANNUAL_GOAL_KM: ${{ vars.ANNUAL_GOAL_KM }}
           TOTAL_WEEKS: ${{ vars.TOTAL_WEEKS }}
           SPORT_TYPES: ${{ vars.SPORT_TYPES }}
+          SHEET_PUBLIC_URL: ${{ vars.SHEET_PUBLIC_URL }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             python -m src.main --dry-run

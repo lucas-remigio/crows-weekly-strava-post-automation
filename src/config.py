@@ -60,6 +60,9 @@ def validate() -> None:
 ANNUAL_GOAL_KM: int = int(os.getenv("ANNUAL_GOAL_KM", "12000"))
 TOTAL_WEEKS: int = int(os.getenv("TOTAL_WEEKS", "52"))
 
+# Public read-only link to the Google Sheet (shown at the bottom of each post).
+SHEET_PUBLIC_URL: str = os.getenv("SHEET_PUBLIC_URL", "")
+
 # Which sport types to count. Empty list means ALL types.
 # Examples: ["Run", "Walk", "Hike", "VirtualRun"]
 SPORT_TYPES: list[str] = [

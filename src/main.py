@@ -74,6 +74,10 @@ def build_post_text(
         diff = on_pace_km - annual_km
         lines.append(f"Estamos -{diff:.1f} km abaixo do ritmo. Vamos lá!")
 
+    if config.SHEET_PUBLIC_URL:
+        lines.append(f"")
+        lines.append(f"Histórico: {config.SHEET_PUBLIC_URL}")
+
     return "\n".join(lines)
 
 
@@ -116,7 +120,7 @@ def run(dry_run: bool = False) -> None:
     weekly_km = strava_client.sum_weekly_distance_km(activities)
 
     # ── Step 2: Read annual total from Sheets ─────────────────────────────────
-    last_annual_km = 0.0 if dry_run else sheets_client.get_last_annual_total()
+    last_annual_km = sheets_client.get_last_annual_total()
     new_annual_km = round(last_annual_km + weekly_km, 2)
 
     logger.info(
