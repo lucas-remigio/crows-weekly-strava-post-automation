@@ -10,31 +10,43 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def _require(key: str) -> str:
-    val = os.getenv(key)
-    if not val:
-        raise EnvironmentError(
-            f"Required environment variable '{key}' is missing. "
-            "Copy .env.example to .env and fill in the values."
-        )
-    return val
-
-
 # ── Strava ────────────────────────────────────────────────────────────────────
-STRAVA_CLIENT_ID: str = _require("STRAVA_CLIENT_ID")
-STRAVA_CLIENT_SECRET: str = _require("STRAVA_CLIENT_SECRET")
-STRAVA_REFRESH_TOKEN: str = _require("STRAVA_REFRESH_TOKEN")
-STRAVA_CLUB_ID: str = _require("STRAVA_CLUB_ID")
+STRAVA_CLIENT_ID: str = os.getenv("STRAVA_CLIENT_ID", "")
+STRAVA_CLIENT_SECRET: str = os.getenv("STRAVA_CLIENT_SECRET", "")
+STRAVA_REFRESH_TOKEN: str = os.getenv("STRAVA_REFRESH_TOKEN", "")
+STRAVA_CLUB_ID: str = os.getenv("STRAVA_CLUB_ID", "")
 
 # ── Google Sheets ─────────────────────────────────────────────────────────────
 # The full JSON content of the service account key file, stored as a secret.
-GOOGLE_SERVICE_ACCOUNT_JSON: str = _require("GOOGLE_SERVICE_ACCOUNT_JSON")
-GOOGLE_SHEET_ID: str = _require("GOOGLE_SHEET_ID")
+GOOGLE_SERVICE_ACCOUNT_JSON: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+GOOGLE_SHEET_ID: str = os.getenv("GOOGLE_SHEET_ID", "")
 
 # ── WhatsApp (CallMeBot) ──────────────────────────────────────────────────────
 # Phone number with country code, no + sign. E.g. 351912345678
-CALLMEBOT_PHONE: str = _require("CALLMEBOT_PHONE")
-CALLMEBOT_API_KEY: str = _require("CALLMEBOT_API_KEY")
+CALLMEBOT_PHONE: str = os.getenv("CALLMEBOT_PHONE", "")
+CALLMEBOT_API_KEY: str = os.getenv("CALLMEBOT_API_KEY", "")
+
+
+_REQUIRED_KEYS = [
+    "STRAVA_CLIENT_ID",
+    "STRAVA_CLIENT_SECRET",
+    "STRAVA_REFRESH_TOKEN",
+    "STRAVA_CLUB_ID",
+    "GOOGLE_SERVICE_ACCOUNT_JSON",
+    "GOOGLE_SHEET_ID",
+    "CALLMEBOT_PHONE",
+    "CALLMEBOT_API_KEY",
+]
+
+
+def validate() -> None:
+    """Call this at the start of a full run to catch missing variables early."""
+    missing = [k for k in _REQUIRED_KEYS if not os.getenv(k)]
+    if missing:
+        raise EnvironmentError(
+            f"Missing required environment variables: {', '.join(missing)}\n"
+            "Copy .env.example to .env and fill in the values."
+        )
 
 # ── Goal / Formatting ─────────────────────────────────────────────────────────
 ANNUAL_GOAL_KM: int = int(os.getenv("ANNUAL_GOAL_KM", "12000"))

@@ -25,14 +25,19 @@ SCOPES = [
 ]
 
 HEADER_ROW = [
-    "Week Number",
-    "Week Start",
-    "Week End",
-    "Weekly KM",
-    "Annual Total KM",
-    "Annual Goal KM",
-    "Post Text",
+    "Semana",
+    "Início da Semana",
+    "Fim da Semana",
+    "KM Semanal",
+    "Total Anual KM",
+    "Objetivo Anual KM",
+    "Texto do Post",
 ]
+
+
+def _fmt(d: date) -> str:
+    """Format a date as dd-mm-yyyy."""
+    return d.strftime("%d-%m-%Y")
 
 
 def _get_worksheet() -> gspread.Worksheet:
@@ -52,7 +57,7 @@ def get_last_annual_total() -> float:
     ws = _get_worksheet()
     all_values = ws.get_all_values()
 
-    data_rows = [row for row in all_values if row and row[0] != HEADER_ROW[0]]
+    data_rows = [row for row in all_values if row and row[0] not in ("", HEADER_ROW[0])]
     if not data_rows:
         logger.info("No existing rows in sheet — starting from 0 km.")
         return 0.0
@@ -99,8 +104,8 @@ def append_weekly_entry(
 
     row: list[Any] = [
         week_number,
-        week_start.isoformat(),
-        week_end.isoformat(),
+        _fmt(week_start),
+        _fmt(week_end),
         round(weekly_km, 2),
         round(annual_km, 2),
         config.ANNUAL_GOAL_KM,

@@ -86,6 +86,9 @@ def run(dry_run: bool = False) -> None:
         dry_run: If True, skip writing to Sheets and sending WhatsApp.
                  Useful for testing the Strava fetch and post text locally.
     """
+    if not dry_run:
+        config.validate()
+
     today = date.today()
     week_number, week_start, week_end = get_week_bounds(today)
 

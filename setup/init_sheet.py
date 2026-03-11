@@ -45,14 +45,19 @@ def get_worksheet():
 
 
 HEADER = [
-    "Week Number",
-    "Week Start",
-    "Week End",
-    "Weekly KM",
-    "Annual Total KM",
-    "Annual Goal KM",
-    "Post Text",
+    "Semana",
+    "Início da Semana",
+    "Fim da Semana",
+    "KM Semanal",
+    "Total Anual KM",
+    "Objetivo Anual KM",
+    "Texto do Post",
 ]
+
+
+def _fmt(d: date) -> str:
+    """Format a date as dd-mm-yyyy."""
+    return d.strftime("%d-%m-%Y")
 
 
 def week_bounds(week_number: int, year: int = None) -> tuple[date, date]:
@@ -85,8 +90,8 @@ def main():
 
     ws = get_worksheet()
 
-    # Check if sheet is empty
-    existing = ws.get_all_values()
+    # Check if sheet is empty (filter out blank rows left by manual deletes)
+    existing = [row for row in ws.get_all_values() if any(cell.strip() for cell in row)]
     if existing:
         print(f"Sheet already has {len(existing)} row(s). Header will be skipped.")
     else:
@@ -98,12 +103,12 @@ def main():
         monday, sunday = week_bounds(args.week)
         row = [
             args.week,
-            monday.isoformat(),
-            sunday.isoformat(),
-            "",  # Weekly KM unknown for the seed row
+            _fmt(monday),
+            _fmt(sunday),
+            "",  # KM semanal desconhecido na linha inicial
             round(args.annual_total, 2),
             config.ANNUAL_GOAL_KM,
-            f"[Seed row — manual entry up to week {args.week}]",
+            f"[Linha inicial — entrada manual até à semana {args.week}]",
         ]
         ws.append_row(row, value_input_option="USER_ENTERED")
         print(
