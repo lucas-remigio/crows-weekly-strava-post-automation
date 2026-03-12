@@ -36,12 +36,12 @@ HEADER_ROW = [
 ]
 
 
-def _fmt(d: date) -> str:
+def fmt_date(d: date) -> str:
     """Format a date as dd-mm-yyyy."""
     return d.strftime("%d-%m-%Y")
 
 
-def _get_worksheet() -> gspread.Worksheet:
+def get_worksheet() -> gspread.Worksheet:
     """Authenticate with the service account and return the first worksheet."""
     sa_info = json.loads(config.GOOGLE_SERVICE_ACCOUNT_JSON)
     creds = Credentials.from_service_account_info(sa_info, scopes=SCOPES)
@@ -55,7 +55,7 @@ def get_last_annual_total() -> float:
     Read the most recent Annual Total from the sheet.
     Returns 0.0 if the sheet has no data rows yet.
     """
-    ws = _get_worksheet()
+    ws = get_worksheet()
     all_values = ws.get_all_values()
 
     data_rows = [row for row in all_values if row and row[0] not in ("", HEADER_ROW[0])]
@@ -79,7 +79,7 @@ def has_entry_for_week(week_number: int) -> bool:
     Return True if the sheet already contains a row for this ISO week number.
     Prevents accidental duplicate entries if the script runs twice.
     """
-    ws = _get_worksheet()
+    ws = get_worksheet()
     col_a = ws.col_values(1)  # Week Number column
 
     for cell in col_a[1:]:  # skip header
@@ -101,12 +101,12 @@ def append_weekly_entry(
     post_text: str,
 ) -> None:
     """Append a new data row for the given week."""
-    ws = _get_worksheet()
+    ws = get_worksheet()
 
     row: list[Any] = [
         week_number,
-        _fmt(week_start),
-        _fmt(week_end),
+        fmt_date(week_start),
+        fmt_date(week_end),
         round(weekly_km, 2),
         round(annual_km, 2),
         config.ANNUAL_GOAL_KM,
@@ -120,7 +120,7 @@ def append_weekly_entry(
 
 def ensure_header_exists() -> None:
     """Write and format the header row if the sheet is completely empty."""
-    ws = _get_worksheet()
+    ws = get_worksheet()
     first_cell = ws.acell("A1").value
 
     if not first_cell:

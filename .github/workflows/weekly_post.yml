@@ -9,13 +9,18 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Dry run (fetch data and print post, skip Sheets & WhatsApp)"
+        description: "Dry run (fetch data and print post, skip Sheets & Telegram)"
         required: false
         default: "false"
         type: choice
         options:
           - "false"
           - "true"
+      week:
+        description: "ISO week number to process (leave empty for current week). Use to recover a missed cron run."
+        required: false
+        default: ""
+        type: string
 
 jobs:
   weekly-post:
@@ -51,8 +56,7 @@ jobs:
           TOTAL_WEEKS: ${{ vars.TOTAL_WEEKS }}
           SPORT_TYPES: ${{ vars.SPORT_TYPES }}
         run: |
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            python -m src.main --dry-run
-          else
-            python -m src.main
-          fi
+          ARGS=""
+          [ "${{ github.event.inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"
+          [ -n "${{ github.event.inputs.week }}" ] && ARGS="$ARGS --week ${{ github.event.inputs.week }}"
+          python -m src.main $ARGS

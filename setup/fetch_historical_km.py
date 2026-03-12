@@ -25,26 +25,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dotenv import load_dotenv
 load_dotenv()
 
+from src import config
+from src.strava_client import STRAVA_API_BASE, refresh_access_token
+
 import requests
 
 
 def _epoch(d: date) -> int:
     return int(datetime(d.year, d.month, d.day, tzinfo=timezone.utc).timestamp())
-
-
-def refresh_token(client_id: str, client_secret: str, refresh_token: str) -> str:
-    resp = requests.post(
-        "https://www.strava.com/oauth/token",
-        data={
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json()["access_token"]
 
 
 def fetch_all_activities(
@@ -71,7 +59,7 @@ def fetch_all_activities(
 
     while True:
         resp = requests.get(
-            f"https://www.strava.com/api/v3/clubs/{club_id}/activities",
+            f"{STRAVA_API_BASE}/clubs/{club_id}/activities",
             headers=headers,
             params={"page": page, "per_page": 200},
             timeout=15,
@@ -116,12 +104,8 @@ def main():
     )
     args = parser.parse_args()
 
-    client_id = os.environ.get("STRAVA_CLIENT_ID", "")
-    client_secret = os.environ.get("STRAVA_CLIENT_SECRET", "")
-    refresh = os.environ.get("STRAVA_REFRESH_TOKEN", "")
-    club_id = os.environ.get("STRAVA_CLUB_ID", "")
-
-    if not all([client_id, client_secret, refresh, club_id]):
+    if not all([config.STRAVA_CLIENT_ID, config.STRAVA_CLIENT_SECRET,
+                 config.STRAVA_REFRESH_TOKEN, config.STRAVA_CLUB_ID]):
         print("ERROR: STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, STRAVA_REFRESH_TOKEN "
               "and STRAVA_CLUB_ID must be set in .env")
         sys.exit(1)
@@ -136,8 +120,8 @@ def main():
     after_epoch = _epoch(year_start)
     before_epoch = _epoch(current_week_monday)
 
-    access_token = refresh_token(client_id, client_secret, refresh)
-    activities = fetch_all_activities(access_token, club_id, after_epoch, before_epoch)
+    access_token = refresh_access_token()
+    activities = fetch_all_activities(access_token, config.STRAVA_CLUB_ID, after_epoch, before_epoch)
 
     total_meters = 0.0
     skipped = 0

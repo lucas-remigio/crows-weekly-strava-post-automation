@@ -18,7 +18,6 @@ Requirements:
 """
 
 import argparse
-import json
 import os
 import sys
 from datetime import date, timedelta
@@ -29,36 +28,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dotenv import load_dotenv
 load_dotenv()
 
-import gspread
-from google.oauth2.service_account import Credentials
-
-
-def get_worksheet():
-    from src import config
-    sa_info = json.loads(config.GOOGLE_SERVICE_ACCOUNT_JSON)
-    creds = Credentials.from_service_account_info(
-        sa_info,
-        scopes=["https://www.googleapis.com/auth/spreadsheets"],
-    )
-    gc = gspread.authorize(creds)
-    return gc.open_by_key(config.GOOGLE_SHEET_ID).sheet1
-
-
-HEADER = [
-    "Semana",
-    "Início da Semana",
-    "Fim da Semana",
-    "KM Semanal",
-    "Total Anual KM",
-    "Objetivo Anual KM",
-    "Texto do Post",
-    "Executado Em",
-]
-
-
-def _fmt(d: date) -> str:
-    """Format a date as dd-mm-yyyy."""
-    return d.strftime("%d-%m-%Y")
+from src import config
+from src.sheets_client import HEADER_ROW, ensure_header_exists, fmt_date, get_worksheet
 
 
 def week_bounds(week_number: int, year: int = None) -> tuple[date, date]:
@@ -89,34 +60,16 @@ def main():
     )
     args = parser.parse_args()
 
-    ws = get_worksheet()
-
     # Check if sheet is empty (filter out blank rows left by manual deletes)
-    existing = [row for row in ws.get_all_values() if any(cell.strip() for cell in row)]
-    if existing:
-        print(f"Sheet already has {len(existing)} row(s). Header will be skipped.")
-    else:
-        ws.append_row(HEADER)
-        ws.format(
-            f"A1:{chr(ord('A') + len(HEADER) - 1)}1",
-            {
-                "backgroundColor": {"red": 0.18, "green": 0.18, "blue": 0.18},
-                "textFormat": {
-                    "bold": True,
-                    "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
-                },
-                "horizontalAlignment": "CENTER",
-            },
-        )
-        print("Header row written and formatted.")
+    ensure_header_exists()
 
     if args.week is not None and args.annual_total is not None:
-        from src import config
+        ws = get_worksheet()
         monday, sunday = week_bounds(args.week)
         row = [
             args.week,
-            _fmt(monday),
-            _fmt(sunday),
+            fmt_date(monday),
+            fmt_date(sunday),
             "",  # KM semanal desconhecido na linha inicial
             round(args.annual_total, 2),
             config.ANNUAL_GOAL_KM,

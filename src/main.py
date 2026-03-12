@@ -79,19 +79,27 @@ def build_post_text(
 
 # ── Main flow ─────────────────────────────────────────────────────────────────
 
-def run(dry_run: bool = False) -> None:
+def run(dry_run: bool = False, for_week: int | None = None) -> None:
     """
     Execute the full weekly post pipeline.
 
     Args:
-        dry_run: If True, skip writing to Sheets and sending WhatsApp.
-                 Useful for testing the Strava fetch and post text locally.
+        dry_run:  If True, skip writing to Sheets and sending Telegram.
+        for_week: ISO week number to process. Defaults to the current week.
+                  Use this to reprocess a past week if the cron job failed.
     """
     if not dry_run:
         config.validate()
 
-    today = date.today()
-    week_number, week_start, week_end = get_week_bounds(today)
+    if for_week is not None:
+        # Derive a date that falls on the Monday of the requested ISO week.
+        # Assumes the current calendar year; safe for any mid-year recovery run.
+        for_date = date.fromisocalendar(date.today().year, for_week, 1)
+        logger.info("Targeting past week %d (derived date: %s)", for_week, for_date)
+    else:
+        for_date = date.today()
+
+    week_number, week_start, week_end = get_week_bounds(for_date)
 
     logger.info(
         "Running for week %d (%s → %s)",
@@ -111,7 +119,7 @@ def run(dry_run: bool = False) -> None:
     # ── Step 1: Fetch Strava activities ───────────────────────────────────────
     access_token = strava_client.refresh_access_token()
     activities = strava_client.get_club_weekly_activities(
-        access_token, config.STRAVA_CLUB_ID, for_date=today
+        access_token, config.STRAVA_CLUB_ID, for_date=for_date
     )
     weekly_km = strava_client.sum_weekly_distance_km(activities)
 
@@ -171,5 +179,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Fetch Strava data and print the post, but skip Sheets and Telegram.",
     )
+    parser.add_argument(
+        "--week",
+        type=int,
+        default=None,
+        metavar="N",
+        help="ISO week number to process (default: current week). Use to recover a missed cron run.",
+    )
     args = parser.parse_args()
-    run(dry_run=args.dry_run)
+    run(dry_run=args.dry_run, for_week=args.week)
