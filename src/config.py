@@ -56,6 +56,10 @@ def validate() -> None:
             "Copy .env.example to .env and fill in the values."
         )
 
+# ── OpenAI ───────────────────────────────────────────────────────────────────
+# Optional. When set, a weekly athlete roast is generated and appended to the post.
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+
 # ── Goal / Formatting ─────────────────────────────────────────────────────────
 ANNUAL_GOAL_KM: int = int(os.getenv("ANNUAL_GOAL_KM", "12000"))
 TOTAL_WEEKS: int = int(os.getenv("TOTAL_WEEKS", "52"))

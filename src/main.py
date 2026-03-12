@@ -23,6 +23,7 @@ from . import config
 from . import strava_client
 from . import sheets_client
 from . import telegram_client
+from . import openai_client
 
 logging.basicConfig(
     level=logging.INFO,
@@ -142,6 +143,14 @@ def run(dry_run: bool = False, for_week: int | None = None) -> None:
         goal_km=config.ANNUAL_GOAL_KM,
         total_weeks=config.TOTAL_WEEKS,
     )
+
+    on_pace_km = (config.ANNUAL_GOAL_KM / config.TOTAL_WEEKS) * week_number
+    roast = openai_client.generate_weekly_roast(
+        above_pace=new_annual_km >= on_pace_km,
+        diff_km=abs(new_annual_km - on_pace_km),
+    )
+    if roast:
+        post_text += f"\n\n{roast}"
 
     print("\n" + "=" * 50)
     print("WEEKLY POST TEXT")
