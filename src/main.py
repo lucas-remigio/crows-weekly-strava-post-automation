@@ -136,6 +136,12 @@ def run(dry_run: bool = False, for_week: int | None = None) -> None:
     )
 
     # ── Step 3: Build post text ───────────────────────────────────────────────
+    on_pace_km = (config.ANNUAL_GOAL_KM / config.TOTAL_WEEKS) * week_number
+    roast = openai_client.generate_weekly_roast(
+        above_pace=new_annual_km >= on_pace_km,
+        diff_km=abs(new_annual_km - on_pace_km),
+    )
+
     post_text = build_post_text(
         week_number=week_number,
         weekly_km=weekly_km,
@@ -144,13 +150,8 @@ def run(dry_run: bool = False, for_week: int | None = None) -> None:
         total_weeks=config.TOTAL_WEEKS,
     )
 
-    on_pace_km = (config.ANNUAL_GOAL_KM / config.TOTAL_WEEKS) * week_number
-    roast = openai_client.generate_weekly_roast(
-        above_pace=new_annual_km >= on_pace_km,
-        diff_km=abs(new_annual_km - on_pace_km),
-    )
     if roast:
-        post_text += f"\n\n{roast}"
+        post_text = f"{roast}\n\n{post_text}"
 
     print("\n" + "=" * 50)
     print("WEEKLY POST TEXT")

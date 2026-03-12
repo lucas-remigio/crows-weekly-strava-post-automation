@@ -56,6 +56,7 @@ jobs:
           TOTAL_WEEKS: ${{ vars.TOTAL_WEEKS }}
           SPORT_TYPES: ${{ vars.SPORT_TYPES }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ATHLETES_JSON: ${{ secrets.ATHLETES_JSON }}
         run: |
           ARGS=""
           [ "${{ github.event.inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"

@@ -22,6 +22,16 @@ logger = logging.getLogger(__name__)
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 
 
+def _system_prompt() -> str:
+    return (
+        "O teu humor é inspirado em Ricardo Araújo Pereira: inteligente, irónico e absolutamente certeiro. "
+        "Usas o absurdo com precisão cirúrgica. As tuas frases têm sempre uma lógica interna impecável que "
+        "torna o disparate completamente inevitável. Não explicas, não exageras, não usas pontos de exclamação. "
+        "O humor nasce da observação fria de factos ridículos, dita com a seriedade de quem está a ler uma acta. "
+        "Escreves em português europeu, culto mas acessível, sem calão e sem emojis."
+    )
+
+
 def generate_weekly_roast(above_pace: bool, diff_km: float) -> str | None:
     """
     Return a one-sentence funny roast in Portuguese, or None if the feature
@@ -49,16 +59,12 @@ def generate_weekly_roast(above_pace: bool, diff_km: float) -> str | None:
             "messages": [
                 {
                     "role": "system",
-                    "content": (
-                        "És um comentador desportivo bem-humorado de um clube de corrida. "
-                        "Escreves frases curtas e engraçadas em português europeu informal. "
-                        "Usa humor ligeiro e criativo, sem seres ofensivo."
-                    ),
+                    "content": _system_prompt(),
                 },
                 {"role": "user", "content": _build_prompt(athlete, above_pace, diff_km)},
             ],
             "max_tokens": 120,
-            "temperature": 0.9,
+            "temperature": 1.1,
         },
         timeout=15,
     )
@@ -70,16 +76,15 @@ def generate_weekly_roast(above_pace: bool, diff_km: float) -> str | None:
 
 
 def _build_prompt(athlete: dict[str, str], above_pace: bool, diff_km: float) -> str:
-    stance = "acima" if above_pace else "abaixo"
-    angle = (
-        "elogiando-o como o herói da semana que puxou o clube para a frente"
+    situation = (
+        f"O clube está {diff_km:.0f} km acima do ritmo anual."
         if above_pace
-        else "culpando-o de forma engraçada por ser o responsável pelo atraso"
+        else f"O clube está {diff_km:.0f} km abaixo do ritmo anual."
     )
     return (
-        f"O atleta {athlete['name']} é conhecido por {athlete['characteristic']}. "
-        f"O clube está {stance} do ritmo anual em {diff_km:.1f} km. "
-        f"Escreve uma única frase engraçada {angle}, "
-        f"relacionando com a sua característica. "
-        f"Responde apenas com a frase, sem introdução nem explicação."
+        f"{situation} "
+        f"{athlete['name']} é conhecido por {athlete['characteristic']}. "
+        f"Escreve uma única frase sobre {athlete['name']} que relacione a sua personalidade com este resultado. "
+        f"Não expliques a piada. Não uses fórmulas como 'não é surpresa' ou 'é culpa de'. "
+        f"Surpreende-nos. Responde apenas com a frase."
     )
