@@ -65,35 +65,6 @@ def _ensure_header(ws, force_header: bool) -> None:
     apply_header_style(ws, len(ATHLETES_HEADER))
 
 
-def _ensure_characteristic_multiline(ws) -> None:
-    ws.format(
-        "B:B",
-        {
-            "wrapStrategy": "WRAP",
-            "verticalAlignment": "TOP",
-        },
-    )
-
-
-def _autosize_rows(ws) -> None:
-    ws.spreadsheet.batch_update(
-        {
-            "requests": [
-                {
-                    "autoResizeDimensions": {
-                        "dimensions": {
-                            "sheetId": ws.id,
-                            "dimension": "ROWS",
-                            "startIndex": 1,
-                            "endIndex": ws.row_count,
-                        }
-                    }
-                }
-            ]
-        }
-    )
-
-
 def _validate_required_google_config() -> None:
     missing = []
     if not config.GOOGLE_SERVICE_ACCOUNT_JSON:
@@ -174,8 +145,6 @@ def main() -> None:
 
     ws, created = _ensure_tab()
     _ensure_header(ws, force_header=args.force_header)
-    _ensure_characteristic_multiline(ws)
-    _autosize_rows(ws)
     seeded_count = 0
     if not args.no_seed:
         seeded_count = _seed_from_json_if_empty(ws)
