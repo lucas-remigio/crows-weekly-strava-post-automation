@@ -20,7 +20,7 @@ import time
 from datetime import date, datetime, timezone
 from datetime import timedelta
 
-from setup._bootstrap import bootstrap_setup
+from _bootstrap import bootstrap_setup
 
 bootstrap_setup()
 

@@ -29,10 +29,11 @@ import urllib.parse
 import webbrowser
 
 import requests
-from setup._bootstrap import bootstrap_setup
-from src import config
+from _bootstrap import bootstrap_setup
 
 bootstrap_setup()
+
+from src import config
 
 CLIENT_ID = os.environ.get("STRAVA_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("STRAVA_CLIENT_SECRET", "")

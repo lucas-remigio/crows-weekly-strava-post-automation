@@ -20,7 +20,7 @@ Requirements:
 import argparse
 from datetime import date, timedelta
 
-from setup._bootstrap import bootstrap_setup
+from _bootstrap import bootstrap_setup
 
 bootstrap_setup()
 

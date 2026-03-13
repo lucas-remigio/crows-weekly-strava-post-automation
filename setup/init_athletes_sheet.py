@@ -21,7 +21,7 @@ from pathlib import Path
 
 from gspread.exceptions import WorksheetNotFound
 
-from setup._bootstrap import bootstrap_setup
+from _bootstrap import bootstrap_setup
 
 bootstrap_setup()
 
@@ -53,15 +53,45 @@ def _ensure_tab():
 def _ensure_header(ws, force_header: bool) -> None:
     first_row = ws.row_values(1)
 
-    if first_row and any(cell.strip() for cell in first_row) and not force_header:
-        return
+    has_header = first_row and any(cell.strip() for cell in first_row)
+    if not has_header or force_header:
+        ws.update(
+            range_name="A1:B1",
+            values=[ATHLETES_HEADER],
+            value_input_option="USER_ENTERED",
+        )
 
-    ws.update(
-        range_name="A1:B1",
-        values=[ATHLETES_HEADER],
-        value_input_option="USER_ENTERED",
-    )
+    # Always apply styling so existing tabs can be reformatted safely.
     apply_header_style(ws, len(ATHLETES_HEADER))
+
+
+def _ensure_characteristic_multiline(ws) -> None:
+    ws.format(
+        "B:B",
+        {
+            "wrapStrategy": "WRAP",
+            "verticalAlignment": "TOP",
+        },
+    )
+
+
+def _autosize_rows(ws) -> None:
+    ws.spreadsheet.batch_update(
+        {
+            "requests": [
+                {
+                    "autoResizeDimensions": {
+                        "dimensions": {
+                            "sheetId": ws.id,
+                            "dimension": "ROWS",
+                            "startIndex": 1,
+                            "endIndex": ws.row_count,
+                        }
+                    }
+                }
+            ]
+        }
+    )
 
 
 def _validate_required_google_config() -> None:
@@ -144,6 +174,8 @@ def main() -> None:
 
     ws, created = _ensure_tab()
     _ensure_header(ws, force_header=args.force_header)
+    _ensure_characteristic_multiline(ws)
+    _autosize_rows(ws)
     seeded_count = 0
     if not args.no_seed:
         seeded_count = _seed_from_json_if_empty(ws)
