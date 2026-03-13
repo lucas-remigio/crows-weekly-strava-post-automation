@@ -9,7 +9,7 @@ appear — this is a Strava API limitation and cannot be worked around.
 
 import time
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import requests
@@ -34,7 +34,7 @@ def refresh_access_token() -> str:
             "grant_type": "refresh_token",
             "refresh_token": config.STRAVA_REFRESH_TOKEN,
         },
-        timeout=15,
+        timeout=config.HTTP_TIMEOUT_SECONDS,
     )
     resp.raise_for_status()
     data = resp.json()
@@ -46,7 +46,7 @@ def refresh_access_token() -> str:
 
 def _week_start_epoch(for_date: date) -> int:
     """Return the Unix timestamp of Monday 00:00:00 UTC for the week of `for_date`."""
-    monday = for_date - __import__("datetime").timedelta(days=for_date.weekday())
+    monday = for_date - timedelta(days=for_date.weekday())
     dt = datetime(monday.year, monday.month, monday.day, tzinfo=timezone.utc)
     return int(dt.timestamp())
 
@@ -82,7 +82,7 @@ def get_club_weekly_activities(
             f"{STRAVA_API_BASE}/clubs/{club_id}/activities",
             headers=headers,
             params={"after": after_epoch, "page": page, "per_page": 200},
-            timeout=15,
+            timeout=config.HTTP_TIMEOUT_SECONDS,
         )
         resp.raise_for_status()
         page_data: list[dict] = resp.json()

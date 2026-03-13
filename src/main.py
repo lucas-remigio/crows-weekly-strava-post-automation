@@ -11,7 +11,7 @@ What it does:
   4. Calculates the new running annual total.
   5. Generates the formatted post text.
   6. Appends a row to the Google Sheet.
-  7. Sends the post text to WhatsApp via CallMeBot.
+  7. Sends the post text to Telegram.
   8. Prints the post text to stdout (for GitHub Actions logs / copy-paste).
 """
 

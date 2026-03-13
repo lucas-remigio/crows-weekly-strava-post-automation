@@ -37,7 +37,7 @@ def _send_to_one(chat_id: str, message: str) -> None:
         "text": message,
     }
     logger.info("Sending Telegram message to chat_id %s", chat_id)
-    resp = requests.post(url, json=payload, timeout=15)
+    resp = requests.post(url, json=payload, timeout=config.HTTP_TIMEOUT_SECONDS)
     logger.info("Telegram response [%d]: %s", resp.status_code, resp.text[:200])
     resp.raise_for_status()
 

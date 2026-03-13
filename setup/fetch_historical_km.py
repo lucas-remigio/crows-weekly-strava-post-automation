@@ -15,15 +15,14 @@ Optional: restrict to specific sport types (same filter as the main script):
 """
 
 import argparse
-import os
 import sys
 import time
 from datetime import date, datetime, timezone
+from datetime import timedelta
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from setup._bootstrap import bootstrap_setup
 
-from dotenv import load_dotenv
-load_dotenv()
+bootstrap_setup()
 
 from src import config
 from src.strava_client import STRAVA_API_BASE, refresh_access_token
@@ -62,7 +61,7 @@ def fetch_all_activities(
             f"{STRAVA_API_BASE}/clubs/{club_id}/activities",
             headers=headers,
             params={"page": page, "per_page": 200},
-            timeout=15,
+            timeout=config.HTTP_TIMEOUT_SECONDS,
         )
         resp.raise_for_status()
         page_data = resp.json()
@@ -115,7 +114,7 @@ def main():
     today = date.today()
     year_start = date(today.year, 1, 1)
     # Monday of the current week = start of current (incomplete) week
-    current_week_monday = today - __import__("datetime").timedelta(days=today.weekday())
+    current_week_monday = today - timedelta(days=today.weekday())
 
     after_epoch = _epoch(year_start)
     before_epoch = _epoch(current_week_monday)

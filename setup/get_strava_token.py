@@ -29,9 +29,10 @@ import urllib.parse
 import webbrowser
 
 import requests
-from dotenv import load_dotenv
+from setup._bootstrap import bootstrap_setup
+from src import config
 
-load_dotenv()
+bootstrap_setup()
 
 CLIENT_ID = os.environ.get("STRAVA_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("STRAVA_CLIENT_SECRET", "")
@@ -105,7 +106,7 @@ def main():
             "code": code,
             "grant_type": "authorization_code",
         },
-        timeout=15,
+        timeout=config.HTTP_TIMEOUT_SECONDS,
     )
     resp.raise_for_status()
     data = resp.json()

@@ -15,7 +15,7 @@ import random
 import requests
 
 from . import config
-from .athletes import ATHLETES
+from .athletes import get_athletes
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +41,12 @@ def generate_weekly_roast(above_pace: bool, diff_km: float) -> str | None:
         logger.info("OPENAI_API_KEY not configured — skipping weekly roast.")
         return None
 
-    if not ATHLETES:
-        logger.info("ATHLETES list is empty — skipping weekly roast.")
+    athletes = get_athletes()
+    if not athletes:
+        logger.info("Athletes list is empty — skipping weekly roast.")
         return None
 
-    athlete = random.choice(ATHLETES)
+    athlete = random.choice(athletes)
     logger.info("Generating roast for athlete: %s", athlete["name"])
 
     resp = requests.post(
@@ -66,7 +67,7 @@ def generate_weekly_roast(above_pace: bool, diff_km: float) -> str | None:
             "max_tokens": 120,
             "temperature": 1.1,
         },
-        timeout=15,
+        timeout=config.HTTP_TIMEOUT_SECONDS,
     )
     resp.raise_for_status()
 

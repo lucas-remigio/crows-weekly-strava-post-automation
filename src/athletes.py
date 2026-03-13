@@ -1,39 +1,73 @@
-"""
-Loads the club athlete roster from athletes.json at the project root,
-or from the ATHLETES_JSON environment variable (used in GitHub Actions
-where the file is not committed to the repo).
+"""Loads the club athlete roster from a dedicated Google Sheets tab."""
 
-Locally: copy athletes.json.example to athletes.json and fill in your members.
-CI: store the JSON content as the ATHLETES_JSON GitHub Actions Secret.
-"""
-
-import json
 import logging
-import os
-from pathlib import Path
+
+from gspread.exceptions import WorksheetNotFound
+
+from . import config
+from .sheets_client import get_worksheet
 
 logger = logging.getLogger(__name__)
 
-_ATHLETES_FILE = Path(__file__).parent.parent / "athletes.json"
+ATHLETES_WORKSHEET_TITLE = "Atletas"
 
 
-def _load() -> list[dict[str, str]]:
-    # Prefer the file (local dev); fall back to env var (CI/Actions).
-    if _ATHLETES_FILE.exists():
-        with _ATHLETES_FILE.open(encoding="utf-8") as fh:
-            return json.load(fh)
-
-    env_json = os.getenv("ATHLETES_JSON", "")
-    if env_json:
-        return json.loads(env_json)
-
-    logger.warning(
-        "No athletes roster found (checked %s and ATHLETES_JSON env var) "
-        "— weekly roast will be skipped. "
-        "Copy athletes.json.example to athletes.json to enable it.",
-        _ATHLETES_FILE,
-    )
-    return []
+def _index(headers: list[str], options: list[str]) -> int | None:
+    for idx, header in enumerate(headers):
+        if header in options:
+            return idx
+    return None
 
 
-ATHLETES: list[dict[str, str]] = _load()
+def get_athletes() -> list[dict[str, str]]:
+    if not config.GOOGLE_SERVICE_ACCOUNT_JSON or not config.GOOGLE_SHEET_ID:
+        logger.warning(
+            "Google Sheets config missing for athletes roster "
+            "(GOOGLE_SERVICE_ACCOUNT_JSON/GOOGLE_SHEET_ID)."
+        )
+        return []
+
+    spreadsheet = get_worksheet().spreadsheet
+    try:
+        ws = spreadsheet.worksheet(ATHLETES_WORKSHEET_TITLE)
+    except WorksheetNotFound:
+        logger.warning(
+            "Athletes worksheet '%s' not found — weekly roast will be skipped.",
+            ATHLETES_WORKSHEET_TITLE,
+        )
+        return []
+
+    values = ws.get_all_values()
+    if not values:
+        logger.warning(
+            "Athletes worksheet '%s' is empty — weekly roast will be skipped.",
+            ATHLETES_WORKSHEET_TITLE,
+        )
+        return []
+
+    headers = [h.strip().lower() for h in values[0]]
+    name_idx = _index(headers, ["nome", "name"])
+    characteristic_idx = _index(headers, ["caracteristica", "característica", "characteristic"])
+
+    if name_idx is None or characteristic_idx is None:
+        logger.warning(
+            "Athletes worksheet '%s' must contain 'Nome' and 'Caracteristica' columns.",
+            ATHLETES_WORKSHEET_TITLE,
+        )
+        return []
+
+    athletes: list[dict[str, str]] = []
+    for row in values[1:]:
+        name = row[name_idx].strip() if len(row) > name_idx else ""
+        characteristic = row[characteristic_idx].strip() if len(row) > characteristic_idx else ""
+        if not name:
+            continue
+        athletes.append({"name": name, "characteristic": characteristic})
+
+    if not athletes:
+        logger.warning(
+            "Athletes worksheet '%s' has no valid rows — weekly roast will be skipped.",
+            ATHLETES_WORKSHEET_TITLE,
+        )
+
+    return athletes

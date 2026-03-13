@@ -63,6 +63,7 @@ OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 # ── Goal / Formatting ─────────────────────────────────────────────────────────
 ANNUAL_GOAL_KM: int = int(os.getenv("ANNUAL_GOAL_KM", "12000"))
 TOTAL_WEEKS: int = int(os.getenv("TOTAL_WEEKS", "52"))
+HTTP_TIMEOUT_SECONDS: int = int(os.getenv("HTTP_TIMEOUT_SECONDS", "15"))
 
 
 # Which sport types to count. Empty list means ALL types.

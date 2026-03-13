@@ -41,6 +41,22 @@ def fmt_date(d: date) -> str:
     return d.strftime("%d-%m-%Y")
 
 
+def apply_header_style(ws: gspread.Worksheet, column_count: int) -> None:
+    """Apply consistent dark header style and freeze the first row."""
+    ws.format(
+        f"A1:{chr(ord('A') + column_count - 1)}1",
+        {
+            "backgroundColor": {"red": 0.18, "green": 0.18, "blue": 0.18},
+            "textFormat": {
+                "bold": True,
+                "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+            },
+            "horizontalAlignment": "CENTER",
+        },
+    )
+    ws.freeze(rows=1)
+
+
 def get_worksheet() -> gspread.Worksheet:
     """Authenticate with the service account and return the first worksheet."""
     sa_info = json.loads(config.GOOGLE_SERVICE_ACCOUNT_JSON)
@@ -125,15 +141,5 @@ def ensure_header_exists() -> None:
 
     if not first_cell:
         ws.append_row(HEADER_ROW)
-        ws.format(
-            f"A1:{chr(ord('A') + len(HEADER_ROW) - 1)}1",
-            {
-                "backgroundColor": {"red": 0.18, "green": 0.18, "blue": 0.18},
-                "textFormat": {
-                    "bold": True,
-                    "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
-                },
-                "horizontalAlignment": "CENTER",
-            },
-        )
+        apply_header_style(ws, len(HEADER_ROW))
         logger.info("Header row written and formatted.")

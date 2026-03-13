@@ -86,6 +86,13 @@ python setup/init_sheet.py
 
 # OR, if you already have a running total (e.g., Week 5, 670 km):
 python setup/init_sheet.py --week 5 --annual-total 670
+
+# Create a second tab with the athletes table (Nome, Caracteristica):
+# seeds from athletes.json when the tab has no data rows
+python setup/init_athletes_sheet.py
+
+# Optional: create header only (no seed)
+python setup/init_athletes_sheet.py --no-seed
 ```
 
 ---
@@ -199,6 +206,7 @@ Customize the text in `src/main.py → build_post_text()`.
 ├── setup/
 │   ├── get_strava_token.py             # One-time OAuth helper
 │   ├── init_sheet.py                   # One-time Sheet bootstrapper
+│   ├── init_athletes_sheet.py          # One-time athletes tab bootstrapper
 │   └── fetch_historical_km.py          # One-time: sum all km from Jan 1 to last week
 ├── src/
 │   ├── config.py                       # Reads all env vars

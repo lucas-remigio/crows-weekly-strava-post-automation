@@ -18,15 +18,11 @@ Requirements:
 """
 
 import argparse
-import os
-import sys
 from datetime import date, timedelta
 
-# Allow running from the repo root
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from setup._bootstrap import bootstrap_setup
 
-from dotenv import load_dotenv
-load_dotenv()
+bootstrap_setup()
 
 from src import config
 from src.sheets_client import HEADER_ROW, ensure_header_exists, fmt_date, get_worksheet
