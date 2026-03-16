@@ -59,16 +59,32 @@ func loadConfig() Config {
 }
 
 func (c Config) validate() error {
-	var missing []string
-	for _, k := range requiredEnvKeys {
-		if os.Getenv(k) == "" {
-			missing = append(missing, k)
-		}
-	}
+	missing := c.missingRequiredKeys()
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
 	return nil
+}
+
+func (c Config) missingRequiredKeys() []string {
+	values := map[string]string{
+		"STRAVA_CLIENT_ID":            c.StravaClientID,
+		"STRAVA_CLIENT_SECRET":        c.StravaClientSecret,
+		"STRAVA_REFRESH_TOKEN":        c.StravaRefreshToken,
+		"STRAVA_CLUB_ID":              c.StravaClubID,
+		"GOOGLE_SERVICE_ACCOUNT_JSON": c.GoogleServiceAccountJSON,
+		"GOOGLE_SHEET_ID":             c.GoogleSheetID,
+		"TELEGRAM_BOT_TOKEN":          c.TelegramBotToken,
+		"TELEGRAM_CHAT_IDS":           strings.Join(c.TelegramChatIDs, ","),
+	}
+
+	var missing []string
+	for _, key := range requiredEnvKeys {
+		if values[key] == "" {
+			missing = append(missing, key)
+		}
+	}
+	return missing
 }
 
 func splitNonEmpty(s string) []string {

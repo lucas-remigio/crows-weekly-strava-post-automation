@@ -14,7 +14,10 @@ import (
 const (
 	stravaAuthURL = "https://www.strava.com/oauth/token"
 	stravaAPIBase = "https://www.strava.com/api/v3"
+	stravaPerPage = 200
 )
+
+const stravaPageDelay = 500 * time.Millisecond
 
 func refreshStravaToken(cfg Config) (string, error) {
 	params := url.Values{
@@ -68,8 +71,8 @@ func fetchClubActivities(cfg Config, accessToken string, forDate time.Time) ([]m
 
 	var all []map[string]any
 	for page := 1; ; page++ {
-		reqURL := fmt.Sprintf("%s/clubs/%s/activities?after=%d&page=%d&per_page=200",
-			stravaAPIBase, cfg.StravaClubID, after, page)
+		reqURL := fmt.Sprintf("%s/clubs/%s/activities?after=%d&page=%d&per_page=%d",
+			stravaAPIBase, cfg.StravaClubID, after, page, stravaPerPage)
 
 		req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 		if err != nil {
@@ -101,11 +104,11 @@ func fetchClubActivities(cfg Config, accessToken string, forDate time.Time) ([]m
 		all = append(all, pageData...)
 		slog.Info("Activities fetched", "page", page, "total", len(all))
 
-		if len(pageData) < 200 {
+		if len(pageData) < stravaPerPage {
 			break
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(stravaPageDelay)
 	}
 
 	slog.Info("Total activities this week", "count", len(all))
@@ -114,21 +117,22 @@ func fetchClubActivities(cfg Config, accessToken string, forDate time.Time) ([]m
 
 func sumWeeklyDistanceKM(cfg Config, activities []map[string]any) float64 {
 	var totalMeters float64
+	allowedSports := make(map[string]struct{}, len(cfg.SportTypes))
+	for _, sport := range cfg.SportTypes {
+		allowedSports[sport] = struct{}{}
+	}
 
 	for _, act := range activities {
-		sportType, _ := act["sport_type"].(string)
-		if sportType == "" {
-			sportType, _ = act["type"].(string)
+		sportType := activitySportType(act)
+
+		if len(allowedSports) > 0 {
+			if _, ok := allowedSports[sportType]; !ok {
+				slog.Debug("Skipping activity type (filtered)", "type", sportType)
+				continue
+			}
 		}
 
-		if len(cfg.SportTypes) > 0 && !sliceContains(cfg.SportTypes, sportType) {
-			slog.Debug("Skipping activity type (filtered)", "type", sportType)
-			continue
-		}
-
-		if d, ok := act["distance"].(float64); ok {
-			totalMeters += d
-		}
+		totalMeters += activityDistanceMeters(act)
 	}
 
 	km := math.Round(totalMeters/1000*100) / 100
@@ -140,11 +144,16 @@ func sumWeeklyDistanceKM(cfg Config, activities []map[string]any) float64 {
 	return km
 }
 
-func sliceContains(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
+func activitySportType(activity map[string]any) string {
+	sportType, _ := activity["sport_type"].(string)
+	if sportType != "" {
+		return sportType
 	}
-	return false
+	legacyType, _ := activity["type"].(string)
+	return legacyType
+}
+
+func activityDistanceMeters(activity map[string]any) float64 {
+	distance, _ := activity["distance"].(float64)
+	return distance
 }

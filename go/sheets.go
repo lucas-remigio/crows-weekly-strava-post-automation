@@ -17,9 +17,13 @@ import (
 )
 
 const (
-	sheetsAPIBase = "https://sheets.googleapis.com/v4/spreadsheets"
-	sheetsScope   = "https://www.googleapis.com/auth/spreadsheets"
-	athletesSheet = "Atletas"
+	sheetsAPIBase  = "https://sheets.googleapis.com/v4/spreadsheets"
+	sheetsScope    = "https://www.googleapis.com/auth/spreadsheets"
+	athletesSheet  = "Atletas"
+	weekHeader     = "Semana"
+	weekCol        = 0
+	annualTotalCol = 4
+	dateLayout     = "02-01-2006"
 )
 
 var headerRow = []any{
@@ -145,7 +149,7 @@ func (sc *sheetsClient) getLastAnnualTotal() (float64, error) {
 
 	var dataRows [][]string
 	for _, row := range values {
-		if len(row) > 0 && row[0] != "" && row[0] != "Semana" {
+		if isWeekDataRow(row) {
 			dataRows = append(dataRows, row)
 		}
 	}
@@ -156,14 +160,14 @@ func (sc *sheetsClient) getLastAnnualTotal() (float64, error) {
 	}
 
 	last := dataRows[len(dataRows)-1]
-	if len(last) < 5 {
+	if len(last) <= annualTotalCol {
 		slog.Warn("Last row too short to read annual total", "row", last)
 		return 0, nil
 	}
 
-	total, err := strconv.ParseFloat(last[4], 64)
+	total, err := strconv.ParseFloat(last[annualTotalCol], 64)
 	if err != nil {
-		slog.Warn("Could not parse annual total", "value", last[4])
+		slog.Warn("Could not parse annual total", "value", last[annualTotalCol])
 		return 0, nil
 	}
 
@@ -185,7 +189,7 @@ func (sc *sheetsClient) hasEntryForWeek(weekNumber int) (bool, error) {
 		if len(row) == 0 {
 			continue
 		}
-		v, err := strconv.Atoi(row[0])
+		v, err := strconv.Atoi(row[weekCol])
 		if err != nil {
 			continue
 		}
@@ -205,13 +209,13 @@ func (sc *sheetsClient) appendWeeklyEntry(
 ) error {
 	row := []any{
 		weekNumber,
-		weekStart.Format("02-01-2006"),
-		weekEnd.Format("02-01-2006"),
+		weekStart.Format(dateLayout),
+		weekEnd.Format(dateLayout),
 		math.Round(weeklyKM*100) / 100,
 		math.Round(annualKM*100) / 100,
 		annualGoal,
 		postText,
-		time.Now().UTC().Format("02-01-2006 15:04 UTC"),
+		time.Now().UTC().Format(dateLayout + " 15:04 UTC"),
 	}
 
 	if err := sc.appendRow(sc.firstSheetTitle, row); err != nil {
@@ -233,4 +237,8 @@ func (sc *sheetsClient) ensureHeaderExists() error {
 		slog.Info("Header row written.")
 	}
 	return nil
+}
+
+func isWeekDataRow(row []string) bool {
+	return len(row) > weekCol && row[weekCol] != "" && row[weekCol] != weekHeader
 }

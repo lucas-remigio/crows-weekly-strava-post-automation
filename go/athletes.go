@@ -11,7 +11,7 @@ type Athlete struct {
 }
 
 func getAthletes(sc *sheetsClient) []Athlete {
-	values, err := sc.getValues("Atletas")
+	values, err := sc.getValues(athletesSheet)
 	if err != nil {
 		slog.Warn("Athletes worksheet not found or empty — skipping roast", "error", err)
 		return nil
@@ -23,24 +23,8 @@ func getAthletes(sc *sheetsClient) []Athlete {
 	}
 
 	headers := values[0]
-	nameIdx, charIdx := -1, -1
-
-	nameOptions := []string{"nome", "name"}
-	charOptions := []string{"caracteristica", "característica", "characteristic"}
-
-	for i, h := range headers {
-		lower := strings.ToLower(strings.TrimSpace(h))
-		for _, opt := range nameOptions {
-			if lower == opt {
-				nameIdx = i
-			}
-		}
-		for _, opt := range charOptions {
-			if lower == opt {
-				charIdx = i
-			}
-		}
-	}
+	nameIdx := headerIndex(headers, "nome", "name")
+	charIdx := headerIndex(headers, "caracteristica", "característica", "characteristic")
 
 	if nameIdx == -1 || charIdx == -1 {
 		slog.Warn("Athletes worksheet missing Nome or Caracteristica columns.")
@@ -70,4 +54,20 @@ func safeGet(row []string, idx int) string {
 		return ""
 	}
 	return strings.TrimSpace(row[idx])
+}
+
+func headerIndex(headers []string, aliases ...string) int {
+	allowed := make(map[string]struct{}, len(aliases))
+	for _, a := range aliases {
+		allowed[strings.ToLower(strings.TrimSpace(a))] = struct{}{}
+	}
+
+	for i, h := range headers {
+		normalized := strings.ToLower(strings.TrimSpace(h))
+		if _, ok := allowed[normalized]; ok {
+			return i
+		}
+	}
+
+	return -1
 }
