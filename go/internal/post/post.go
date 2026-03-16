@@ -1,4 +1,4 @@
-package main
+package post
 
 import (
 	"fmt"
@@ -12,11 +12,9 @@ type WeekBounds struct {
 	Sunday     time.Time
 }
 
-func getWeekBounds(forDate time.Time) WeekBounds {
+func GetWeekBounds(forDate time.Time) WeekBounds {
 	_, week := forDate.ISOWeek()
 
-	// Go's Weekday(): 0=Sunday, 1=Monday, ..., 6=Saturday
-	// daysToMonday: 0 if already Monday, 6 if Sunday
 	weekday := int(forDate.Weekday())
 	daysToMonday := (weekday + 6) % 7
 
@@ -27,9 +25,8 @@ func getWeekBounds(forDate time.Time) WeekBounds {
 	return WeekBounds{WeekNumber: week, Monday: monday, Sunday: sunday}
 }
 
-// mondayOfISOWeek returns the Monday of ISO week `week` in the given year.
-func mondayOfISOWeek(year, week int) time.Time {
-	// Jan 4 is always in ISO week 1.
+// MondayOfISOWeek returns the Monday of ISO week `week` in the given year.
+func MondayOfISOWeek(year, week int) time.Time {
 	jan4 := time.Date(year, time.January, 4, 0, 0, 0, 0, time.UTC)
 	weekday := int(jan4.Weekday())
 	daysToMonday := (weekday + 6) % 7
@@ -37,7 +34,7 @@ func mondayOfISOWeek(year, week int) time.Time {
 	return week1Monday.AddDate(0, 0, (week-1)*7)
 }
 
-func buildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalKM int) string {
+func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalKM int) string {
 	annualPct := annualKM / float64(goalKM) * 100
 	weekPct := float64(weekNumber) / float64(totalWeeks) * 100
 	onPaceKM := (float64(goalKM) / float64(totalWeeks)) * float64(weekNumber)

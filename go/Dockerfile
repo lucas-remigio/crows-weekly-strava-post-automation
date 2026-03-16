@@ -4,10 +4,13 @@ FROM golang:1.22-alpine AS builder
 WORKDIR /build
 
 COPY go.mod ./
-COPY *.go ./
+COPY go.sum ./
+RUN go mod download
 
-# go mod tidy downloads deps and generates go.sum in one step
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o weekly-post .
+COPY *.go ./
+COPY internal ./internal
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o weekly-post .
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM alpine:3.19

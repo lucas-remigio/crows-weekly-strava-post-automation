@@ -1,10 +1,11 @@
-package main
+package sheets
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -17,9 +18,9 @@ import (
 )
 
 const (
-	sheetsAPIBase  = "https://sheets.googleapis.com/v4/spreadsheets"
-	sheetsScope    = "https://www.googleapis.com/auth/spreadsheets"
-	athletesSheet  = "Atletas"
+	apiBase        = "https://sheets.googleapis.com/v4/spreadsheets"
+	scope          = "https://www.googleapis.com/auth/spreadsheets"
+	AthletesSheet  = "Atletas"
 	weekHeader     = "Semana"
 	weekCol        = 0
 	annualTotalCol = 4
@@ -37,26 +38,22 @@ var headerRow = []any{
 	"Executado Em",
 }
 
-type sheetsClient struct {
+type Client struct {
 	client          *http.Client
 	sheetID         string
 	firstSheetTitle string
 }
 
-func newSheetsClient(cfg Config) (*sheetsClient, error) {
-	creds, err := google.CredentialsFromJSON(
-		context.Background(),
-		[]byte(cfg.GoogleServiceAccountJSON),
-		sheetsScope,
-	)
+func NewClient(serviceAccountJSON, sheetID string, timeoutSeconds int) (*Client, error) {
+	creds, err := google.CredentialsFromJSON(context.Background(), []byte(serviceAccountJSON), scope)
 	if err != nil {
 		return nil, fmt.Errorf("google credentials: %w", err)
 	}
 
-	client := oauth2.NewClient(context.Background(), creds.TokenSource)
-	client.Timeout = time.Duration(cfg.HTTPTimeoutSeconds) * time.Second
+	httpClient := oauth2.NewClient(context.Background(), creds.TokenSource)
+	httpClient.Timeout = time.Duration(timeoutSeconds) * time.Second
 
-	sc := &sheetsClient{client: client, sheetID: cfg.GoogleSheetID}
+	sc := &Client{client: httpClient, sheetID: sheetID}
 	title, err := sc.fetchFirstSheetTitle()
 	if err != nil {
 		return nil, fmt.Errorf("fetch sheet title: %w", err)
@@ -65,17 +62,18 @@ func newSheetsClient(cfg Config) (*sheetsClient, error) {
 	return sc, nil
 }
 
-// fetchFirstSheetTitle returns the title of the first worksheet in the spreadsheet.
-func (sc *sheetsClient) fetchFirstSheetTitle() (string, error) {
-	apiURL := fmt.Sprintf("%s/%s?fields=sheets.properties.title", sheetsAPIBase, sc.sheetID)
+func (sc *Client) fetchFirstSheetTitle() (string, error) {
+	apiURL := fmt.Sprintf("%s/%s?fields=sheets.properties.title", apiBase, sc.sheetID)
 	resp, err := sc.client.Get(apiURL)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
+
 	if err := checkStatus(resp); err != nil {
 		return "", fmt.Errorf("spreadsheet metadata: %w", err)
 	}
+
 	var meta struct {
 		Sheets []struct {
 			Properties struct {
@@ -92,10 +90,8 @@ func (sc *sheetsClient) fetchFirstSheetTitle() (string, error) {
 	return meta.Sheets[0].Properties.Title, nil
 }
 
-// getValues fetches all rows from the given sheet/range name.
-func (sc *sheetsClient) getValues(rangeName string) ([][]string, error) {
-	apiURL := fmt.Sprintf("%s/%s/values/%s", sheetsAPIBase, sc.sheetID, url.PathEscape(rangeName))
-
+func (sc *Client) GetValues(rangeName string) ([][]string, error) {
+	apiURL := fmt.Sprintf("%s/%s/values/%s", apiBase, sc.sheetID, url.PathEscape(rangeName))
 	resp, err := sc.client.Get(apiURL)
 	if err != nil {
 		return nil, err
@@ -115,8 +111,7 @@ func (sc *sheetsClient) getValues(rangeName string) ([][]string, error) {
 	return result.Values, nil
 }
 
-// appendRow appends a single row to the given sheet/range name.
-func (sc *sheetsClient) appendRow(rangeName string, row []any) error {
+func (sc *Client) appendRow(rangeName string, row []any) error {
 	body, err := json.Marshal(map[string]any{
 		"range":          rangeName,
 		"majorDimension": "ROWS",
@@ -126,9 +121,7 @@ func (sc *sheetsClient) appendRow(rangeName string, row []any) error {
 		return err
 	}
 
-	apiURL := fmt.Sprintf("%s/%s/values/%s:append?valueInputOption=USER_ENTERED",
-		sheetsAPIBase, sc.sheetID, url.PathEscape(rangeName))
-
+	apiURL := fmt.Sprintf("%s/%s/values/%s:append?valueInputOption=USER_ENTERED", apiBase, sc.sheetID, url.PathEscape(rangeName))
 	resp, err := sc.client.Post(apiURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -141,8 +134,8 @@ func (sc *sheetsClient) appendRow(rangeName string, row []any) error {
 	return nil
 }
 
-func (sc *sheetsClient) getLastAnnualTotal() (float64, error) {
-	values, err := sc.getValues(sc.firstSheetTitle)
+func (sc *Client) GetLastAnnualTotal() (float64, error) {
+	values, err := sc.GetValues(sc.firstSheetTitle)
 	if err != nil {
 		return 0, err
 	}
@@ -175,17 +168,16 @@ func (sc *sheetsClient) getLastAnnualTotal() (float64, error) {
 	return total, nil
 }
 
-func (sc *sheetsClient) hasEntryForWeek(weekNumber int) (bool, error) {
-	values, err := sc.getValues(sc.firstSheetTitle)
+func (sc *Client) HasEntryForWeek(weekNumber int) (bool, error) {
+	values, err := sc.GetValues(sc.firstSheetTitle)
 	if err != nil {
 		return false, err
 	}
-
 	if len(values) < 2 {
 		return false, nil
 	}
 
-	for _, row := range values[1:] { // skip header
+	for _, row := range values[1:] {
 		if len(row) == 0 {
 			continue
 		}
@@ -200,7 +192,7 @@ func (sc *sheetsClient) hasEntryForWeek(weekNumber int) (bool, error) {
 	return false, nil
 }
 
-func (sc *sheetsClient) appendWeeklyEntry(
+func (sc *Client) AppendWeeklyEntry(
 	weekNumber int,
 	weekStart, weekEnd time.Time,
 	weeklyKM, annualKM float64,
@@ -225,8 +217,8 @@ func (sc *sheetsClient) appendWeeklyEntry(
 	return nil
 }
 
-func (sc *sheetsClient) ensureHeaderExists() error {
-	values, err := sc.getValues(sc.firstSheetTitle)
+func (sc *Client) EnsureHeaderExists() error {
+	values, err := sc.GetValues(sc.firstSheetTitle)
 	if err != nil {
 		return err
 	}
@@ -241,4 +233,12 @@ func (sc *sheetsClient) ensureHeaderExists() error {
 
 func isWeekDataRow(row []string) bool {
 	return len(row) > weekCol && row[weekCol] != "" && row[weekCol] != weekHeader
+}
+
+func checkStatus(resp *http.Response) error {
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+	body, _ := io.ReadAll(resp.Body)
+	return fmt.Errorf("HTTP %s: %s", resp.Status, body)
 }

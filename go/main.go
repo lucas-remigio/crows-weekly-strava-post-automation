@@ -9,6 +9,10 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	postpkg "strava-weekly-post/internal/post"
+	"strava-weekly-post/internal/sheets"
+	"strava-weekly-post/internal/strava"
 )
 
 func main() {
@@ -44,20 +48,20 @@ func run(dryRun bool, week int, now time.Time) error {
 		return err
 	}
 
-	bounds := getWeekBounds(forDate)
+	bounds := postpkg.GetWeekBounds(forDate)
 	slog.Info("Running for week",
 		"week", bounds.WeekNumber,
 		"from", bounds.Monday.Format("2006-01-02"),
 		"to", bounds.Sunday.Format("2006-01-02"),
 	)
 
-	sc, err := newSheetsClient(cfg)
+	sc, err := sheets.NewClient(cfg.GoogleServiceAccountJSON, cfg.GoogleSheetID, cfg.HTTPTimeoutSeconds)
 	if err != nil {
 		return fmt.Errorf("create Sheets client: %w", err)
 	}
 
 	if !dryRun {
-		exists, err := sc.hasEntryForWeek(bounds.WeekNumber)
+		exists, err := sc.HasEntryForWeek(bounds.WeekNumber)
 		if err != nil {
 			return fmt.Errorf("check duplicate week: %w", err)
 		}
@@ -66,18 +70,26 @@ func run(dryRun bool, week int, now time.Time) error {
 		}
 	}
 
-	accessToken, err := refreshStravaToken(cfg)
+	stravaClient := strava.NewClient(
+		cfg.StravaClientID,
+		cfg.StravaClientSecret,
+		cfg.StravaRefreshToken,
+		cfg.StravaClubID,
+		cfg.HTTPTimeoutSeconds,
+	)
+
+	accessToken, err := stravaClient.RefreshToken()
 	if err != nil {
 		return fmt.Errorf("refresh Strava token: %w", err)
 	}
 
-	activities, err := fetchClubActivities(cfg, accessToken, forDate)
+	activities, err := stravaClient.FetchClubActivities(accessToken, forDate)
 	if err != nil {
 		return fmt.Errorf("fetch Strava activities: %w", err)
 	}
-	weeklyKM := sumWeeklyDistanceKM(cfg, activities)
+	weeklyKM := strava.SumWeeklyDistanceKM(activities, cfg.SportTypes)
 
-	lastAnnualKM, err := sc.getLastAnnualTotal()
+	lastAnnualKM, err := sc.GetLastAnnualTotal()
 	if err != nil {
 		return fmt.Errorf("read annual total from sheet: %w", err)
 	}
@@ -93,7 +105,7 @@ func run(dryRun bool, week int, now time.Time) error {
 	athletes := getAthletes(sc)
 	roast := generateWeeklyRoast(cfg, athletes, newAnnualKM >= onPaceKM, math.Abs(newAnnualKM-onPaceKM))
 
-	postText := buildPostText(bounds.WeekNumber, cfg.TotalWeeks, weeklyKM, newAnnualKM, cfg.AnnualGoalKM)
+	postText := postpkg.BuildPostText(bounds.WeekNumber, cfg.TotalWeeks, weeklyKM, newAnnualKM, cfg.AnnualGoalKM)
 	if roast != "" {
 		postText = roast + "\n\n" + postText
 	}
@@ -105,11 +117,11 @@ func run(dryRun bool, week int, now time.Time) error {
 		return nil
 	}
 
-	if err := sc.ensureHeaderExists(); err != nil {
+	if err := sc.EnsureHeaderExists(); err != nil {
 		return fmt.Errorf("ensure header exists: %w", err)
 	}
 
-	if err := sc.appendWeeklyEntry(
+	if err := sc.AppendWeeklyEntry(
 		bounds.WeekNumber,
 		bounds.Monday, bounds.Sunday,
 		weeklyKM, newAnnualKM,
@@ -130,7 +142,7 @@ func resolveRunDate(week int, now time.Time) (time.Time, error) {
 	if week < 1 || week > 53 {
 		return time.Time{}, fmt.Errorf("invalid ISO week: %d", week)
 	}
-	forDate := mondayOfISOWeek(now.Year(), week)
+	forDate := postpkg.MondayOfISOWeek(now.Year(), week)
 	slog.Info("Targeting past week", "week", week, "derived_date", forDate.Format("2006-01-02"))
 	return forDate, nil
 }

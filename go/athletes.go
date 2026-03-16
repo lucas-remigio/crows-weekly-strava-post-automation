@@ -3,6 +3,8 @@ package main
 import (
 	"log/slog"
 	"strings"
+
+	"strava-weekly-post/internal/sheets"
 )
 
 type Athlete struct {
@@ -10,8 +12,8 @@ type Athlete struct {
 	Characteristic string
 }
 
-func getAthletes(sc *sheetsClient) []Athlete {
-	values, err := sc.getValues(athletesSheet)
+func getAthletes(sc *sheets.Client) []Athlete {
+	values, err := sc.GetValues(sheets.AthletesSheet)
 	if err != nil {
 		slog.Warn("Athletes worksheet not found or empty — skipping roast", "error", err)
 		return nil
