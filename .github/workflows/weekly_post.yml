@@ -1,11 +1,7 @@
 name: Weekly Strava Club Post
 
 on:
-  # Every Sunday at 22:00 UTC (midnight Portugal winter / 00:00 Portugal summer)
-  schedule:
-    - cron: "0 22 * * 0"
-
-  # Allow triggering manually from the GitHub Actions UI (useful for testing)
+  # Manual trigger only. Scheduling is handled on the VPS cron.
   workflow_dispatch:
     inputs:
       dry_run:

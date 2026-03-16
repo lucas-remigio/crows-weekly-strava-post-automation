@@ -1,0 +1,114 @@
+name: Build And Deploy To VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: lucasremigio/strava-weekly-post
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      APP_DIR: $HOME/apps/strava-weekly-post
+      IMAGE_NAME: lucasremigio/strava-weekly-post
+      CONTAINER_MEMORY: 256m
+
+    steps:
+      - name: Configure VPS runtime and cron
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          APP_DIR: ${{ env.APP_DIR }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          CONTAINER_MEMORY: ${{ env.CONTAINER_MEMORY }}
+          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+          STRAVA_CLUB_ID: ${{ secrets.STRAVA_CLUB_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANNUAL_GOAL_KM: ${{ vars.ANNUAL_GOAL_KM }}
+          TOTAL_WEEKS: ${{ vars.TOTAL_WEEKS }}
+          SPORT_TYPES: ${{ vars.SPORT_TYPES }}
+          HTTP_TIMEOUT_SECONDS: ${{ vars.HTTP_TIMEOUT_SECONDS }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          envs: APP_DIR,IMAGE_NAME,CONTAINER_MEMORY,STRAVA_CLIENT_ID,STRAVA_CLIENT_SECRET,STRAVA_REFRESH_TOKEN,STRAVA_CLUB_ID,GOOGLE_SERVICE_ACCOUNT_JSON,GOOGLE_SHEET_ID,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_IDS,OPENAI_API_KEY,ANNUAL_GOAL_KM,TOTAL_WEEKS,SPORT_TYPES,HTTP_TIMEOUT_SECONDS
+          script: |
+            set -euo pipefail
+
+            mkdir -p "$APP_DIR"
+
+            cat > "$APP_DIR/.env" << ENVEOF
+            STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID
+            STRAVA_CLIENT_SECRET=$STRAVA_CLIENT_SECRET
+            STRAVA_REFRESH_TOKEN=$STRAVA_REFRESH_TOKEN
+            STRAVA_CLUB_ID=$STRAVA_CLUB_ID
+            GOOGLE_SERVICE_ACCOUNT_JSON=$GOOGLE_SERVICE_ACCOUNT_JSON
+            GOOGLE_SHEET_ID=$GOOGLE_SHEET_ID
+            TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+            TELEGRAM_CHAT_IDS=$TELEGRAM_CHAT_IDS
+            OPENAI_API_KEY=$OPENAI_API_KEY
+            ANNUAL_GOAL_KM=$ANNUAL_GOAL_KM
+            TOTAL_WEEKS=$TOTAL_WEEKS
+            SPORT_TYPES=$SPORT_TYPES
+            HTTP_TIMEOUT_SECONDS=$HTTP_TIMEOUT_SECONDS
+            ENVEOF
+
+            cat > "$APP_DIR/run_weekly.sh" << SCRIPTEOF
+            #!/usr/bin/env bash
+            set -euo pipefail
+
+            APP_DIR="$APP_DIR"
+            IMAGE="$IMAGE_NAME:latest"
+            MEMORY_LIMIT="$CONTAINER_MEMORY"
+
+            docker pull "$IMAGE"
+            docker run --rm --memory "$MEMORY_LIMIT" --memory-swap "$MEMORY_LIMIT" --env-file "$APP_DIR/.env" "$IMAGE" python -m src.main >> "$APP_DIR/weekly.log" 2>&1
+            SCRIPTEOF
+
+            chmod +x "$APP_DIR/run_weekly.sh"
+
+            CRON_LINE='0 22 * * 0 /bin/bash -lc "$HOME/apps/strava-weekly-post/run_weekly.sh"'
+            (crontab -l 2>/dev/null | grep -v 'strava-weekly-post/run_weekly.sh' | grep -v '^CRON_TZ=Europe/Lisbon$' || true; \
+             echo 'CRON_TZ=Europe/Lisbon'; \
+             echo "$CRON_LINE") | crontab -
+
+            docker pull "$IMAGE_NAME:latest"

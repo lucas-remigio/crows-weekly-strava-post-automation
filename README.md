@@ -176,9 +176,49 @@ python -m src.main --dry-run
 
 ## Schedule
 
-The GitHub Action runs **every Sunday at 22:00 UTC** (midnight Portugal winter time, 23:00 Portugal summer time).
+Scheduling is handled by VPS cron (configured by `.github/workflows/deploy_vps.yml`) at **Sunday 22:00 Europe/Lisbon**.
 
-You can also trigger it manually from the **Actions** tab → **Weekly Strava Club Post** → **Run workflow**.
+The GitHub workflow `Weekly Strava Club Post` remains available for manual recovery runs from the **Actions** tab.
+
+## Deploy On A VPS (Docker + cron)
+
+If you prefer stricter timing than GitHub scheduled workflows, use the included
+deployment workflow at `.github/workflows/deploy_vps.yml`.
+
+It does this on every push to `main`:
+
+1. Builds and pushes `lucasremigio/strava-weekly-post` to Docker Hub.
+2. SSHes into your VPS.
+3. Writes runtime env vars to `~/apps/strava-weekly-post/.env`.
+4. Creates `~/apps/strava-weekly-post/run_weekly.sh`.
+5. Installs cron with timezone `Europe/Lisbon` and schedule `0 22 * * 0`.
+
+Required GitHub Secrets:
+
+- `DOCKER_USERNAME`
+- `DOCKER_PASSWORD`
+- `SSH_PRIVATE_KEY`
+- `VPS_HOST`
+- `VPS_USER`
+- `STRAVA_CLIENT_ID`
+- `STRAVA_CLIENT_SECRET`
+- `STRAVA_REFRESH_TOKEN`
+- `STRAVA_CLUB_ID`
+- `GOOGLE_SERVICE_ACCOUNT_JSON`
+- `GOOGLE_SHEET_ID`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_IDS`
+- `OPENAI_API_KEY` (optional)
+
+Optional GitHub Variables:
+
+- `ANNUAL_GOAL_KM`
+- `TOTAL_WEEKS`
+- `SPORT_TYPES`
+- `HTTP_TIMEOUT_SECONDS`
+
+To avoid duplicate posts, disable or remove `.github/workflows/weekly_post.yml`
+after switching to VPS cron.
 
 ---
 
