@@ -7,6 +7,9 @@ venv/
 dist/
 build/
 .DS_Store
+go/strava-weekly-post
+go/weekly-post
+go/*.exe
 
 # Service account key files — never commit these
 *.json

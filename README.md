@@ -164,6 +164,18 @@ Add these **Variables** (non-sensitive config):
 
 ## Running locally
 
+The active deployment target is the Go implementation in `go/`. The Python implementation remains in `src/` as a fallback while the Go path settles.
+
+```bash
+# Go full run (writes to Sheets, sends Telegram message):
+go run ./go
+
+# Go dry run (fetches Strava + reads current Sheet total, prints post — skips write & Telegram):
+go run ./go --dry-run
+```
+
+Python fallback commands:
+
 ```bash
 # Full run (writes to Sheets, sends Telegram message):
 python -m src.main
@@ -178,6 +190,8 @@ python -m src.main --dry-run
 
 Scheduling is handled by VPS cron (configured by `.github/workflows/deploy_vps.yml`) at **Sunday 22:00 Europe/Lisbon**.
 
+That workflow now builds the Go image from `go/Dockerfile` and runs the compiled Go binary on the VPS.
+
 The GitHub workflow `Weekly Strava Club Post` remains available for manual recovery runs from the **Actions** tab.
 
 ## Deploy On A VPS (Docker + cron)
@@ -187,7 +201,7 @@ deployment workflow at `.github/workflows/deploy_vps.yml`.
 
 It does this on every push to `main`:
 
-1. Builds and pushes `lucasremigio/strava-weekly-post` to Docker Hub.
+1. Builds and pushes the Go image `lucasremigio/strava-weekly-post` to Docker Hub.
 2. SSHes into your VPS.
 3. Writes runtime env vars to `~/apps/strava-weekly-post/.env`.
 4. Creates `~/apps/strava-weekly-post/run_weekly.sh`.
@@ -243,17 +257,21 @@ Customize the text in `src/main.py → build_post_text()`.
 ```
 .
 ├── .github/workflows/weekly_post.yml   # GitHub Actions cron job
+├── go/
+│   ├── Dockerfile                       # Go container image
+│   ├── main.go                          # Go entry point
+│   └── ...                              # Go implementation
 ├── setup/
 │   ├── get_strava_token.py             # One-time OAuth helper
 │   ├── init_sheet.py                   # One-time Sheet bootstrapper
 │   ├── init_athletes_sheet.py          # One-time athletes tab bootstrapper
 │   └── fetch_historical_km.py          # One-time: sum all km from Jan 1 to last week
 ├── src/
-│   ├── config.py                       # Reads all env vars
-│   ├── strava_client.py                # Strava API (token refresh + activities)
-│   ├── sheets_client.py                # Google Sheets read/write
-│   ├── telegram_client.py              # Telegram bot sender
-│   └── main.py                         # Orchestration & post generation
+│   ├── config.py                       # Python fallback implementation
+│   ├── strava_client.py                # Python fallback implementation
+│   ├── sheets_client.py                # Python fallback implementation
+│   ├── telegram_client.py              # Python fallback implementation
+│   └── main.py                         # Python fallback implementation
 ├── .env.example                        # Template — copy to .env
 └── requirements.txt
 ```

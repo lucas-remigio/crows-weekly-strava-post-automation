@@ -28,8 +28,8 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./go
+          file: ./go/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
@@ -101,7 +101,7 @@ jobs:
             MEMORY_LIMIT="$CONTAINER_MEMORY"
 
             docker pull "$IMAGE"
-            docker run --rm --memory "$MEMORY_LIMIT" --memory-swap "$MEMORY_LIMIT" --env-file "$APP_DIR/.env" "$IMAGE" python -m src.main >> "$APP_DIR/weekly.log" 2>&1
+            docker run --rm --memory "$MEMORY_LIMIT" --memory-swap "$MEMORY_LIMIT" --env-file "$APP_DIR/.env" "$IMAGE" >> "$APP_DIR/weekly.log" 2>&1
             SCRIPTEOF
 
             chmod +x "$APP_DIR/run_weekly.sh"

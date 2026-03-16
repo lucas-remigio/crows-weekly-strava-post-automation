@@ -29,14 +29,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          python-version: "3.12"
-          cache: pip
+          go-version: "1.22"
+          cache-dependency-path: go/go.sum
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Download dependencies
+        working-directory: ./go
+        run: go mod download
 
       - name: Run weekly post script
         env:
@@ -56,4 +57,4 @@ jobs:
           ARGS=""
           [ "${{ github.event.inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"
           [ -n "${{ github.event.inputs.week }}" ] && ARGS="$ARGS --week ${{ github.event.inputs.week }}"
-          python -m src.main $ARGS
+          go run ./go $ARGS
