@@ -92,13 +92,13 @@ jobs:
             HTTP_TIMEOUT_SECONDS=$HTTP_TIMEOUT_SECONDS
             ENVEOF
 
-            cat > "$APP_DIR/run_weekly.sh" << SCRIPTEOF
+            cat > "$APP_DIR/run_weekly.sh" << 'SCRIPTEOF'
             #!/usr/bin/env bash
             set -euo pipefail
 
-            APP_DIR="$APP_DIR"
-            IMAGE="$IMAGE_NAME:latest"
-            MEMORY_LIMIT="$CONTAINER_MEMORY"
+            APP_DIR="${APP_DIR:-$HOME/apps/strava-weekly-post}"
+            IMAGE="${IMAGE_NAME:-lucasremigio/strava-weekly-post}:latest"
+            MEMORY_LIMIT="${CONTAINER_MEMORY:-256m}"
 
             docker pull "$IMAGE"
             docker run --rm --memory "$MEMORY_LIMIT" --memory-swap "$MEMORY_LIMIT" --env-file "$APP_DIR/.env" "$IMAGE" >> "$APP_DIR/weekly.log" 2>&1
