@@ -41,6 +41,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     env:
+      APP_DIR: $HOME/apps/strava-weekly-post
       IMAGE_NAME: lucasremigio/strava-weekly-post
       CONTAINER_MEMORY: 256m
 
@@ -48,6 +49,7 @@ jobs:
       - name: Configure VPS runtime and cron
         uses: appleboy/ssh-action@v1.0.3
         env:
+          APP_DIR: ${{ env.APP_DIR }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           CONTAINER_MEMORY: ${{ env.CONTAINER_MEMORY }}
           STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
@@ -68,11 +70,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script_stop: true
-          envs: IMAGE_NAME,CONTAINER_MEMORY,STRAVA_CLIENT_ID,STRAVA_CLIENT_SECRET,STRAVA_REFRESH_TOKEN,STRAVA_CLUB_ID,GOOGLE_SERVICE_ACCOUNT_JSON,GOOGLE_SHEET_ID,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_IDS,OPENAI_API_KEY,ANNUAL_GOAL_KM,TOTAL_WEEKS,SPORT_TYPES,HTTP_TIMEOUT_SECONDS
+          envs: APP_DIR,IMAGE_NAME,CONTAINER_MEMORY,STRAVA_CLIENT_ID,STRAVA_CLIENT_SECRET,STRAVA_REFRESH_TOKEN,STRAVA_CLUB_ID,GOOGLE_SERVICE_ACCOUNT_JSON,GOOGLE_SHEET_ID,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_IDS,OPENAI_API_KEY,ANNUAL_GOAL_KM,TOTAL_WEEKS,SPORT_TYPES,HTTP_TIMEOUT_SECONDS
           script: |
             set -euo pipefail
-
-            APP_DIR="$HOME/apps/strava-weekly-post"
 
             mkdir -p "$APP_DIR"
 
@@ -92,13 +92,13 @@ jobs:
             HTTP_TIMEOUT_SECONDS=$HTTP_TIMEOUT_SECONDS
             ENVEOF
 
-            cat > "$APP_DIR/run_weekly.sh" << 'SCRIPTEOF'
+            cat > "$APP_DIR/run_weekly.sh" << SCRIPTEOF
             #!/usr/bin/env bash
             set -euo pipefail
 
-            APP_DIR="$HOME/apps/strava-weekly-post"
-            IMAGE="lucasremigio/strava-weekly-post:latest"
-            MEMORY_LIMIT="256m"
+            APP_DIR="$APP_DIR"
+            IMAGE="$IMAGE_NAME:latest"
+            MEMORY_LIMIT="$CONTAINER_MEMORY"
 
             docker pull "$IMAGE"
             docker run --rm --memory "$MEMORY_LIMIT" --memory-swap "$MEMORY_LIMIT" --env-file "$APP_DIR/.env" "$IMAGE" python -m src.main >> "$APP_DIR/weekly.log" 2>&1
