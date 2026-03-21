@@ -88,6 +88,7 @@ func run(dryRun bool, week int, now time.Time) error {
 		return fmt.Errorf("fetch Strava activities: %w", err)
 	}
 	weeklyKM := strava.SumWeeklyDistanceKM(activities, cfg.SportTypes)
+	weeklyKMBySport := strava.SumWeeklyDistanceBySportKM(activities, cfg.SportTypes)
 
 	lastAnnualKM, err := sc.GetLastAnnualTotal()
 	if err != nil {
@@ -105,7 +106,7 @@ func run(dryRun bool, week int, now time.Time) error {
 	athletes := getAthletes(sc)
 	roast := generateWeeklyRoast(cfg, athletes, newAnnualKM >= onPaceKM, math.Abs(newAnnualKM-onPaceKM))
 
-	postText := postpkg.BuildPostText(bounds.WeekNumber, cfg.TotalWeeks, weeklyKM, newAnnualKM, cfg.AnnualGoalKM)
+	postText := postpkg.BuildPostText(bounds.WeekNumber, cfg.TotalWeeks, weeklyKM, newAnnualKM, cfg.AnnualGoalKM, weeklyKMBySport)
 	if roast != "" {
 		postText = roast + "\n\n" + postText
 	}

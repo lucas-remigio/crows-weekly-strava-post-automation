@@ -29,10 +29,22 @@ func TestMondayOfISOWeek(t *testing.T) {
 }
 
 func TestBuildPostTextBelowPace(t *testing.T) {
-	text := BuildPostText(12, 53, 13.2, 1248.6, 12000)
+	text := BuildPostText(12, 53, 13.2, 1248.6, 12000, map[string]float64{
+		"Run":  10.2,
+		"Walk": 3.0,
+	})
 
 	if !strings.Contains(text, "Semana 12/53") {
 		t.Fatalf("expected week line in post text, got:\n%s", text)
+	}
+	if !strings.Contains(text, "Por modalidade:") {
+		t.Fatalf("expected by-sport header in post text, got:\n%s", text)
+	}
+	if !strings.Contains(text, "├─ Caminhada: 3.0 km") {
+		t.Fatalf("expected tree line for walk in post text, got:\n%s", text)
+	}
+	if !strings.Contains(text, "└─ Corrida: 10.2 km") {
+		t.Fatalf("expected tree line for run in post text, got:\n%s", text)
 	}
 	if !strings.Contains(text, "abaixo do ritmo") {
 		t.Fatalf("expected below pace message, got:\n%s", text)

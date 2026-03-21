@@ -156,25 +156,46 @@ func logWeeklyDistanceBySportType(activities []Activity) {
 		return
 	}
 
-	metersByType := make(map[string]float64)
-	for _, activity := range activities {
-		sportType := activity.EffectiveSportType()
-		if sportType == "" {
-			sportType = "Unknown"
-		}
-		metersByType[sportType] += activity.Distance
-	}
-
-	sportTypes := make([]string, 0, len(metersByType))
-	for sportType := range metersByType {
+	kmByType := SumWeeklyDistanceBySportKM(activities, nil)
+	sportTypes := make([]string, 0, len(kmByType))
+	for sportType := range kmByType {
 		sportTypes = append(sportTypes, sportType)
 	}
 	sort.Strings(sportTypes)
 
 	for _, sportType := range sportTypes {
-		km := math.Round((metersByType[sportType]/1000)*100) / 100
-		slog.Info("Weekly distance by sport type", "sport_type", sportType, "km", km)
+		slog.Info("Weekly distance by sport type", "sport_type", sportType, "km", kmByType[sportType])
 	}
+}
+
+func SumWeeklyDistanceBySportKM(activities []Activity, sportTypes []string) map[string]float64 {
+	metersByType := make(map[string]float64)
+	allowedSports := make(map[string]struct{}, len(sportTypes))
+	for _, sport := range sportTypes {
+		allowedSports[sport] = struct{}{}
+	}
+
+	for _, activity := range activities {
+		sportType := activity.EffectiveSportType()
+		if sportType == "" {
+			sportType = "Unknown"
+		}
+
+		if len(allowedSports) > 0 {
+			if _, ok := allowedSports[sportType]; !ok {
+				continue
+			}
+		}
+
+		metersByType[sportType] += activity.Distance
+	}
+
+	kmByType := make(map[string]float64, len(metersByType))
+	for sportType, meters := range metersByType {
+		kmByType[sportType] = math.Round(meters/1000*100) / 100
+	}
+
+	return kmByType
 }
 
 func SumWeeklyDistanceKM(activities []Activity, sportTypes []string) float64 {

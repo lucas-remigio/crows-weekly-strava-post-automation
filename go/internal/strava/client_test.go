@@ -40,3 +40,42 @@ func TestSumWeeklyDistanceKMFilteredTypes(t *testing.T) {
 		t.Fatalf("expected 11.50 km, got %.2f", km)
 	}
 }
+
+func TestSumWeeklyDistanceBySportKMAllTypes(t *testing.T) {
+	activities := []Activity{
+		{Distance: 10000, SportType: "Run"},
+		{Distance: 2500, SportType: "Walk"},
+		{Distance: 1500, Type: "Run"},
+		{Distance: 500, SportType: ""},
+	}
+
+	kmBySport := SumWeeklyDistanceBySportKM(activities, nil)
+
+	if got := kmBySport["Run"]; got != 11.5 {
+		t.Fatalf("expected Run 11.50 km, got %.2f", got)
+	}
+	if got := kmBySport["Walk"]; got != 2.5 {
+		t.Fatalf("expected Walk 2.50 km, got %.2f", got)
+	}
+	if got := kmBySport["Unknown"]; got != 0.5 {
+		t.Fatalf("expected Unknown 0.50 km, got %.2f", got)
+	}
+}
+
+func TestSumWeeklyDistanceBySportKMFilteredTypes(t *testing.T) {
+	activities := []Activity{
+		{Distance: 10000, SportType: "Run"},
+		{Distance: 2500, SportType: "Walk"},
+		{Distance: 1500, Type: "Run"},
+		{Distance: 500, SportType: ""},
+	}
+
+	kmBySport := SumWeeklyDistanceBySportKM(activities, []string{"Run"})
+
+	if len(kmBySport) != 1 {
+		t.Fatalf("expected only one sport type, got %d", len(kmBySport))
+	}
+	if got := kmBySport["Run"]; got != 11.5 {
+		t.Fatalf("expected Run 11.50 km, got %.2f", got)
+	}
+}
