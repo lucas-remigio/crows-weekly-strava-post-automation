@@ -69,7 +69,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script_stop: true
+          script_stop: false
           envs: APP_DIR,IMAGE_NAME,CONTAINER_MEMORY,STRAVA_CLIENT_ID,STRAVA_CLIENT_SECRET,STRAVA_REFRESH_TOKEN,STRAVA_CLUB_ID,GOOGLE_SERVICE_ACCOUNT_JSON,GOOGLE_SHEET_ID,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_IDS,OPENAI_API_KEY,ANNUAL_GOAL_KM,TOTAL_WEEKS,SPORT_TYPES,HTTP_TIMEOUT_SECONDS
           script: |
             set -euo pipefail
@@ -100,8 +100,14 @@ jobs:
             IMAGE="${IMAGE_NAME:-lucasremigio/strava-weekly-post}:latest"
             MEMORY_LIMIT="${CONTAINER_MEMORY:-256m}"
 
-            docker pull "$IMAGE"
-            docker run --rm --memory "$MEMORY_LIMIT" --memory-swap "$MEMORY_LIMIT" --env-file "$APP_DIR/.env" "$IMAGE" >> "$APP_DIR/weekly.log" 2>&1
+            {
+              echo "=== $(date -Is) START ==="
+              docker pull "$IMAGE"
+              docker run --rm --memory "$MEMORY_LIMIT" --memory-swap "$MEMORY_LIMIT" --env-file "$APP_DIR/.env" "$IMAGE" ./weekly-post
+              rc=$?
+              echo "=== $(date -Is) END rc=$rc ==="
+              exit $rc
+            } >> "$APP_DIR/weekly.log" 2>&1
             SCRIPTEOF
 
             chmod +x "$APP_DIR/run_weekly.sh"
