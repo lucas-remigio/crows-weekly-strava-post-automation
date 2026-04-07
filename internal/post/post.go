@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 )
 
 type sportBreakdown struct {
@@ -31,34 +30,6 @@ var sportTypePT = map[string]string{
 	"yoga":             "🧘 Yoga",
 	"unknown":          "❓ Desconhecido",
 	"":                 "❓ Desconhecido",
-}
-
-type WeekBounds struct {
-	WeekNumber int
-	Monday     time.Time
-	Sunday     time.Time
-}
-
-func GetWeekBounds(forDate time.Time) WeekBounds {
-	_, week := forDate.ISOWeek()
-
-	weekday := int(forDate.Weekday())
-	daysToMonday := (weekday + 6) % 7
-
-	monday := forDate.AddDate(0, 0, -daysToMonday)
-	monday = time.Date(monday.Year(), monday.Month(), monday.Day(), 0, 0, 0, 0, monday.Location())
-	sunday := monday.AddDate(0, 0, 6)
-
-	return WeekBounds{WeekNumber: week, Monday: monday, Sunday: sunday}
-}
-
-// MondayOfISOWeek returns the Monday of ISO week `week` in the given year.
-func MondayOfISOWeek(year, week int) time.Time {
-	jan4 := time.Date(year, time.January, 4, 0, 0, 0, 0, time.UTC)
-	weekday := int(jan4.Weekday())
-	daysToMonday := (weekday + 6) % 7
-	week1Monday := jan4.AddDate(0, 0, -daysToMonday)
-	return week1Monday.AddDate(0, 0, (week-1)*7)
 }
 
 func renderProgressBar(percentage float64, totalBlocks int) string {
@@ -98,46 +69,70 @@ func formatDuration(seconds int) string {
 }
 
 func BuildPostText(weekNumber, totalWeeks int, annualKM float64, goalKM int, stats WeeklyStats) string {
-	annualPct := annualKM / float64(goalKM) * 100
-	weekPct := float64(weekNumber) / float64(totalWeeks) * 100
-	onPaceKM := (float64(goalKM) / float64(totalWeeks)) * float64(weekNumber)
+	var lines []string
 
-	lines := []string{
-		fmt.Sprintf("Semana %d/%d (%.1f%%)", weekNumber, totalWeeks, weekPct),
-		"",
-		fmt.Sprintf("Total semanal: %.1f km", stats.TotalDistanceKM),
-	}
+	lines = append(lines, buildHeader(weekNumber, totalWeeks, stats.TotalDistanceKM)...)
 	lines = append(lines, formatWeeklyBySportLines(stats.DistanceBySport)...)
 	lines = append(lines, "")
+	lines = append(lines, buildMainStats(stats)...)
+	lines = append(lines, formatWeeklyByAthleteLines(stats)...)
+	lines = append(lines, buildAveragesRow(stats)...)
+	lines = append(lines, buildFooter(annualKM, float64(goalKM), weekNumber, totalWeeks)...)
 
+	return strings.Join(lines, "\n")
+}
+
+func buildHeader(weekNum, totalWeeks int, weeklyKM float64) []string {
+	weekPct := float64(weekNum) / float64(totalWeeks) * 100
+	return []string{
+		fmt.Sprintf("Semana %d/%d (%.1f%%)", weekNum, totalWeeks, weekPct),
+		"",
+		fmt.Sprintf("Total semanal: %.1f km", weeklyKM),
+	}
+}
+
+func buildMainStats(stats WeeklyStats) []string {
+	var lines []string
 	if stats.TotalMovingTime > 0 {
 		lines = append(lines, fmt.Sprintf("⏱️ Tempo em movimento: %s", formatDuration(stats.TotalMovingTime)))
 	}
-
 	if stats.TotalElevation > 0 {
 		lines = append(lines, fmt.Sprintf("⛰️ Subimos juntos: %.0f metros", stats.TotalElevation))
 	}
-	lines = append(lines, "")
+	if len(lines) > 0 {
+		lines = append(lines, "")
+	}
+	return lines
+}
 
-	lines = append(lines, formatWeeklyByAthleteLines(stats)...)
-
-	if numAthletes := len(stats.DistanceByAthlete); numAthletes > 0 {
-		avgKM := stats.TotalDistanceKM / float64(numAthletes)
-		avgTime := stats.TotalMovingTime / numAthletes
-		avgElev := stats.TotalElevation / float64(numAthletes)
-
-		lines = append(lines, fmt.Sprintf("Média por atleta: %.1f km | %s | +%.0fm alt.", avgKM, formatDuration(avgTime), avgElev))
-		lines = append(lines, fmt.Sprintf("\n🔥 Destaque: A volta épica do(a) %s", stats.EpicAthlete))
-		lines = append(lines, fmt.Sprintf(" '%s' com uns incríveis %.1f km!", stats.EpicActivityName, stats.EpicActivityKM))
+func buildAveragesRow(stats WeeklyStats) []string {
+	numAthletes := len(stats.DistanceByAthlete)
+	if numAthletes == 0 {
+		return nil
 	}
 
+	avgKM := stats.TotalDistanceKM / float64(numAthletes)
+	avgTime := stats.TotalMovingTime / numAthletes
+	avgElev := stats.TotalElevation / float64(numAthletes)
+
+	return []string{
+		fmt.Sprintf("Média por atleta: %.1f km | %s | +%.0fm alt.", avgKM, formatDuration(avgTime), avgElev),
+		fmt.Sprintf("\n🔥 Destaque: A volta épica do(a) %s", stats.EpicAthlete),
+		fmt.Sprintf(" '%s' com uns incríveis %.1f km!", stats.EpicActivityName, stats.EpicActivityKM),
+	}
+}
+
+func buildFooter(annualKM, goalKM float64, weekNum, totalWeeks int) []string {
+	annualPct := (annualKM / goalKM) * 100
+	onPaceKM := (goalKM / float64(totalWeeks)) * float64(weekNum)
 	bar := renderProgressBar(annualPct, 10)
-	lines = append(lines,
+
+	lines := []string{
 		"",
-		fmt.Sprintf("Objetivo Anual: [%s] %.1f%% (%.1f / %d km)", bar, annualPct, annualKM, goalKM),
+		fmt.Sprintf("Objetivo Anual: [%s] %.1f%% (%.1f / %.0f km)", bar, annualPct, annualKM, goalKM),
 		"",
 		fmt.Sprintf("Por esta altura devíamos ter feito %.0f km", onPaceKM),
-	)
+	}
 
 	diff := annualKM - onPaceKM
 	if diff >= 0 {
@@ -146,7 +141,12 @@ func BuildPostText(weekNumber, totalWeeks int, annualKM float64, goalKM int, sta
 		lines = append(lines, fmt.Sprintf("🚨 Estamos -%.1f km abaixo do ritmo! Bora mexer essas pernas!", -diff))
 	}
 
-	return strings.Join(lines, "\n")
+	return lines
+}
+
+type athleteScore struct {
+	Name string
+	KM   float64
 }
 
 func formatWeeklyByAthleteLines(stats WeeklyStats) []string {
@@ -154,70 +154,78 @@ func formatWeeklyByAthleteLines(stats WeeklyStats) []string {
 		return []string{"Leaderboard:", "└─ -"}
 	}
 
-	type athleteScore struct {
-		Name string
-		KM   float64
-	}
-
-	var items []athleteScore
-	for name, km := range stats.DistanceByAthlete {
-		items = append(items, athleteScore{Name: name, KM: km})
-	}
-
-	// Sort descending by KM
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].KM > items[j].KM
-	})
-
-	medals := []string{"🥇", "🥈", "🥉"}
-
+	items := getSortedAthleteScores(stats.DistanceByAthlete)
 	lines := make([]string, 0, len(items)+1)
 	lines = append(lines, "Leaderboard da Semana:")
+
 	for i, item := range items {
-		prefix := "├─"
-		if i == len(items)-1 {
-			prefix = "└─"
-		}
-
-		rank := "🐢"
-		if i < len(medals) {
-			rank = medals[i]
-		}
-
-		badge := ""
-		if item.KM > 50 {
-			badge += " 🚀 Lenda"
-		}
-		if item.Name == stats.MountainGoat && stats.MountainGoat != "" {
-			badge += " 🐐 Cabra da Montanha"
-		}
-		if item.Name == stats.MachineAthlete && stats.MachineAthlete != "" {
-			badge += " 🤖 Papa-Treinos"
-		}
-
-		extras := ""
-		if time, ok := stats.TimeByAthlete[item.Name]; ok && time > 0 {
-			extras += formatDuration(time)
-		}
-		if elev, ok := stats.ElevationByAthlete[item.Name]; ok && elev > 0 {
-			if extras != "" {
-				extras += " | "
-			}
-			extras += fmt.Sprintf("+%.0fm alt.", elev)
-		}
-
-		if extras != "" {
-			extras = fmt.Sprintf(" (%s)", extras)
-		}
-
-		if badge != "" {
-			badge = fmt.Sprintf(" (%s)", strings.TrimSpace(badge))
-		}
-
-		lines = append(lines, fmt.Sprintf("%s %s %s: %.1f km%s%s", prefix, rank, item.Name, item.KM, extras, badge))
+		lines = append(lines, formatAthleteLine(i, len(items), item, stats))
 	}
 
 	return lines
+}
+
+func getSortedAthleteScores(distance map[string]float64) []athleteScore {
+	var items []athleteScore
+	for name, km := range distance {
+		items = append(items, athleteScore{Name: name, KM: km})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].KM > items[j].KM
+	})
+	return items
+}
+
+func formatAthleteLine(i, totalItems int, item athleteScore, stats WeeklyStats) string {
+	prefix := "├─"
+	if i == totalItems-1 {
+		prefix = "└─"
+	}
+
+	rank := "🐢"
+	if medals := []string{"🥇", "🥈", "🥉"}; i < len(medals) {
+		rank = medals[i]
+	}
+
+	badge := getAthleteBadges(item.Name, item.KM, stats)
+	extras := getAthleteExtras(item.Name, stats)
+
+	if extras != "" {
+		extras = fmt.Sprintf(" (%s)", extras)
+	}
+	if badge != "" {
+		badge = fmt.Sprintf(" (%s)", strings.TrimSpace(badge))
+	}
+
+	return fmt.Sprintf("%s %s %s: %.1f km%s%s", prefix, rank, item.Name, item.KM, extras, badge)
+}
+
+func getAthleteBadges(name string, km float64, stats WeeklyStats) string {
+	var badge string
+	if km > 50 {
+		badge += " 🚀 Lenda"
+	}
+	if name == stats.MountainGoat && stats.MountainGoat != "" {
+		badge += " 🐐 Cabra da Montanha"
+	}
+	if name == stats.MachineAthlete && stats.MachineAthlete != "" {
+		badge += " 🤖 Papa-Treinos"
+	}
+	return badge
+}
+
+func getAthleteExtras(name string, stats WeeklyStats) string {
+	var extras string
+	if timeVal, ok := stats.TimeByAthlete[name]; ok && timeVal > 0 {
+		extras += formatDuration(timeVal)
+	}
+	if elev, ok := stats.ElevationByAthlete[name]; ok && elev > 0 {
+		if extras != "" {
+			extras += " | "
+		}
+		extras += fmt.Sprintf("+%.0fm alt.", elev)
+	}
+	return extras
 }
 
 func formatWeeklyBySportLines(weeklyKMBySport map[string]float64) []string {

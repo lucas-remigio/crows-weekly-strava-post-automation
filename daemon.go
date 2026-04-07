@@ -34,8 +34,8 @@ func getLisbonTimezone() *time.Location {
 }
 
 func calculateNextRunTime(now time.Time, loc *time.Location) time.Time {
-	// We want Monday at 06:00:00 AM (perfect morning time to catch all late Sunday runs)
-	target := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, loc)
+	// We want Monday at 00:05:00 AM (early, but with a 5-minute grace period for Strava to finish late Sunday syncs)
+	target := time.Date(now.Year(), now.Month(), now.Day(), 0, 5, 0, 0, loc)
 
 	// Shift forward until we hit a future Monday
 	for target.Weekday() != time.Monday || now.After(target) {
@@ -46,8 +46,8 @@ func calculateNextRunTime(now time.Time, loc *time.Location) time.Time {
 
 func executeScheduledRun() {
 	// Trick the run() function into evaluating the week that *just* ended
-	// by passing yesterday's date (Sunday), avoiding the brand new empty Monday week.
-	evalDate := time.Now().Add(-24 * time.Hour)
+	// by subtracting 12 hours cleanly, landing safely on Sunday regardless of 23h/25h DST days.
+	evalDate := time.Now().Add(-12 * time.Hour)
 
 	if err := run(false, 0, evalDate); err != nil {
 		if errors.Is(err, errDuplicateWeek) {

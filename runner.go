@@ -106,11 +106,14 @@ func calculateNewAnnualTotal(sc *sheets.Client, weeklyKM float64) (float64, erro
 }
 
 func compilePost(cfg Config, sc *sheets.Client, bounds postpkg.WeekBounds, newAnnualKM float64, stats strava.WeeklyStats) string {
-	onPaceKM := (float64(cfg.AnnualGoalKM) / float64(cfg.TotalWeeks)) * float64(bounds.WeekNumber)
+	isoYear, _ := bounds.Monday.ISOWeek()
+	totalWeeks := postpkg.MaxISOWeek(isoYear)
+
+	onPaceKM := (float64(cfg.AnnualGoalKM) / float64(totalWeeks)) * float64(bounds.WeekNumber)
 	athletes := getAthletes(sc)
 
 	roast := generateWeeklyRoast(cfg, athletes, newAnnualKM >= onPaceKM, math.Abs(newAnnualKM-onPaceKM))
-	postText := postpkg.BuildPostText(bounds.WeekNumber, cfg.TotalWeeks, newAnnualKM, cfg.AnnualGoalKM, postpkg.WeeklyStats{
+	postText := postpkg.BuildPostText(bounds.WeekNumber, totalWeeks, newAnnualKM, cfg.AnnualGoalKM, postpkg.WeeklyStats{
 		TotalDistanceKM:    stats.TotalDistanceKM,
 		DistanceBySport:    stats.DistanceBySport,
 		DistanceByAthlete:  stats.DistanceByAthlete,
@@ -151,9 +154,12 @@ func resolveRunDate(week int, now time.Time) (time.Time, error) {
 	if week == 0 {
 		return now, nil
 	}
-	if week < 1 || week > 53 {
-		return time.Time{}, fmt.Errorf("invalid ISO week: %d", week)
+
+	maxWeek := postpkg.MaxISOWeek(now.Year())
+	if week < 1 || week > maxWeek {
+		return time.Time{}, fmt.Errorf("invalid ISO week for year %d: %d (max: %d)", now.Year(), week, maxWeek)
 	}
+
 	forDate := postpkg.MondayOfISOWeek(now.Year(), week)
 	slog.Info("Targeting past week", "week", week, "derived_date", forDate.Format("2006-01-02"))
 	return forDate, nil

@@ -21,7 +21,6 @@ type Config struct {
 	TelegramChatIDs          []string
 	OpenAIAPIKey             string
 	AnnualGoalKM             int
-	TotalWeeks               int
 	HTTPTimeoutSeconds       int
 	SportTypes               []string
 }
@@ -52,7 +51,6 @@ func loadConfig() Config {
 		TelegramChatIDs:          splitNonEmpty(os.Getenv("TELEGRAM_CHAT_IDS")),
 		OpenAIAPIKey:             os.Getenv("OPENAI_API_KEY"),
 		AnnualGoalKM:             envInt("ANNUAL_GOAL_KM", 12000),
-		TotalWeeks:               envInt("TOTAL_WEEKS", 52),
 		HTTPTimeoutSeconds:       envInt("HTTP_TIMEOUT_SECONDS", 15),
 		SportTypes:               splitNonEmpty(os.Getenv("SPORT_TYPES")),
 	}
