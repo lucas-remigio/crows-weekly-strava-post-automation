@@ -61,6 +61,18 @@ func MondayOfISOWeek(year, week int) time.Time {
 	return week1Monday.AddDate(0, 0, (week-1)*7)
 }
 
+func renderProgressBar(percentage float64, totalBlocks int) string {
+	if percentage < 0 {
+		percentage = 0
+	}
+	filled := int((percentage / 100) * float64(totalBlocks))
+	if filled > totalBlocks {
+		filled = totalBlocks
+	}
+	empty := totalBlocks - filled
+	return strings.Repeat("█", filled) + strings.Repeat("░", empty)
+}
+
 func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalKM int, weeklyKMBySport, weeklyKMByAthlete map[string]float64) string {
 	annualPct := annualKM / float64(goalKM) * 100
 	weekPct := float64(weekNumber) / float64(totalWeeks) * 100
@@ -75,18 +87,25 @@ func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalK
 	lines = append(lines, formatWeeklyBySportLines(weeklyKMBySport)...)
 	lines = append(lines, "")
 	lines = append(lines, formatWeeklyByAthleteLines(weeklyKMByAthlete)...)
+
+	if numAthletes := len(weeklyKMByAthlete); numAthletes > 0 {
+		avgKM := weeklyKM / float64(numAthletes)
+		lines = append(lines, fmt.Sprintf("Média por atleta esta semana: %.1f km", avgKM))
+	}
+
+	bar := renderProgressBar(annualPct, 10)
 	lines = append(lines,
 		"",
-		fmt.Sprintf("Total anual: %.1f / %d km (%.1f%%)", annualKM, goalKM, annualPct),
+		fmt.Sprintf("Objetivo Anual: [%s] %.1f%% (%.1f / %d km)", bar, annualPct, annualKM, goalKM),
 		"",
 		fmt.Sprintf("Por esta altura devíamos ter feito %.0f km", onPaceKM),
 	)
 
 	diff := annualKM - onPaceKM
 	if diff >= 0 {
-		lines = append(lines, fmt.Sprintf("Estamos +%.1f km acima do ritmo. Muito bom!", diff))
+		lines = append(lines, fmt.Sprintf("🚀 Estamos +%.1f km acima do ritmo! Máquinas!", diff))
 	} else {
-		lines = append(lines, fmt.Sprintf("Estamos -%.1f km abaixo do ritmo. Vamos lá!", -diff))
+		lines = append(lines, fmt.Sprintf("🚨 Estamos -%.1f km abaixo do ritmo! Bora mexer essas pernas!", -diff))
 	}
 
 	return strings.Join(lines, "\n")
@@ -122,12 +141,17 @@ func formatWeeklyByAthleteLines(weeklyKMByAthlete map[string]float64) []string {
 			prefix = "└─"
 		}
 
-		rank := "💩"
+		rank := "🐢"
 		if i < len(medals) {
 			rank = medals[i]
 		}
 
-		lines = append(lines, fmt.Sprintf("%s %s %s: %.1f km", prefix, rank, item.Name, item.KM))
+		badge := ""
+		if item.KM > 50 {
+			badge = " (🚀 Lenda)"
+		}
+
+		lines = append(lines, fmt.Sprintf("%s %s %s: %.1f km%s", prefix, rank, item.Name, item.KM, badge))
 	}
 
 	return lines

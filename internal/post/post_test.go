@@ -49,7 +49,7 @@ func TestBuildPostTextBelowPace(t *testing.T) {
 	if !strings.Contains(text, "└─ 🚶 Caminhada: 3.0 km") {
 		t.Fatalf("expected tree line for run in post text, got:\n%s", text)
 	}
-	if !strings.Contains(text, "abaixo do ritmo") {
+	if !strings.Contains(text, "abaixo do ritmo! Bora mexer essas pernas!") {
 		t.Fatalf("expected below pace message, got:\n%s", text)
 	}
 }
@@ -78,11 +78,11 @@ func TestFormatWeeklyByAthleteLines(t *testing.T) {
 	if !strings.Contains(lines[3], "🥉 Bob") {
 		t.Errorf("expected Bronze for Bob, got: %s", lines[3])
 	}
-	if !strings.Contains(lines[4], "💩 Charlie") {
-		t.Errorf("expected Poop for Charlie, got: %s", lines[4])
+	if !strings.Contains(lines[4], "🐢 Charlie") {
+		t.Errorf("expected Turtle for Charlie, got: %s", lines[4])
 	}
-	if !strings.Contains(lines[5], "└─ 💩 Eve: 1.0 km") {
-		t.Errorf("expected Poop for Eve and ending branch, got: %s", lines[5])
+	if !strings.Contains(lines[5], "└─ 🐢 Eve") {
+		t.Errorf("expected Turtle for Eve and ending branch, got: %s", lines[5])
 	}
 }
 
