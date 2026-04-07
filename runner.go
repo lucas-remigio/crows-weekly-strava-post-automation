@@ -24,36 +24,11 @@ func run(dryRun bool, week int, now time.Time) error {
 		}
 	}
 
-	forDate, err := resolveRunDate(week, now)
+	postText, weeklyKM, newAnnualKM, bounds, sc, err := buildWeeklyPost(cfg, week, now, !dryRun)
 	if err != nil {
 		return err
 	}
 
-	bounds := postpkg.GetWeekBounds(forDate)
-	slog.Info("Running for week", "week", bounds.WeekNumber, "from", bounds.Monday.Format("2006-01-02"))
-
-	sc, err := sheets.NewClient(cfg.GoogleServiceAccountJSON, cfg.GoogleSheetID, cfg.HTTPTimeoutSeconds)
-	if err != nil {
-		return fmt.Errorf("create Sheets client: %w", err)
-	}
-
-	if !dryRun {
-		if err := checkDuplicateWeek(sc, bounds.WeekNumber); err != nil {
-			return err
-		}
-	}
-
-	stats, err := fetchStravaStats(cfg, forDate)
-	if err != nil {
-		return err
-	}
-
-	newAnnualKM, err := calculateNewAnnualTotal(sc, stats.TotalDistanceKM)
-	if err != nil {
-		return err
-	}
-
-	postText := compilePost(cfg, sc, bounds, newAnnualKM, stats)
 	printPostText(postText)
 
 	if dryRun {
@@ -61,7 +36,41 @@ func run(dryRun bool, week int, now time.Time) error {
 		return nil
 	}
 
-	return publishResults(cfg, sc, bounds, postText, stats.TotalDistanceKM, newAnnualKM)
+	return publishResults(cfg, sc, bounds, postText, weeklyKM, newAnnualKM)
+}
+
+func buildWeeklyPost(cfg Config, week int, now time.Time, checkDuplicate bool) (string, float64, float64, postpkg.WeekBounds, *sheets.Client, error) {
+	forDate, err := resolveRunDate(week, now)
+	if err != nil {
+		return "", 0, 0, postpkg.WeekBounds{}, nil, err
+	}
+
+	bounds := postpkg.GetWeekBounds(forDate)
+	slog.Info("Running for week", "week", bounds.WeekNumber, "from", bounds.Monday.Format("2006-01-02"))
+
+	sc, err := sheets.NewClient(cfg.GoogleServiceAccountJSON, cfg.GoogleSheetID, cfg.HTTPTimeoutSeconds)
+	if err != nil {
+		return "", 0, 0, postpkg.WeekBounds{}, nil, fmt.Errorf("create Sheets client: %w", err)
+	}
+
+	if checkDuplicate {
+		if err := checkDuplicateWeek(sc, bounds.WeekNumber); err != nil {
+			return "", 0, 0, postpkg.WeekBounds{}, nil, err
+		}
+	}
+
+	stats, err := fetchStravaStats(cfg, forDate)
+	if err != nil {
+		return "", 0, 0, postpkg.WeekBounds{}, nil, err
+	}
+
+	newAnnualKM, err := calculateNewAnnualTotal(sc, stats.TotalDistanceKM)
+	if err != nil {
+		return "", 0, 0, postpkg.WeekBounds{}, nil, err
+	}
+
+	postText := compilePost(cfg, sc, bounds, newAnnualKM, stats)
+	return postText, stats.TotalDistanceKM, newAnnualKM, bounds, sc, nil
 }
 
 func checkDuplicateWeek(sc *sheets.Client, weekNumber int) error {

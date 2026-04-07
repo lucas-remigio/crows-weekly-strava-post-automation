@@ -9,6 +9,10 @@ import (
 func runDaemon() {
 	slog.Info("Starting Strava Crows Weekly Post daemon mode...")
 	loc := getLisbonTimezone()
+	cfg := loadConfig()
+
+	// 1. Launch the Telegram Commands background listener
+	go pollTelegramCommands(cfg)
 
 	initialTarget := calculateNextRunTime(time.Now().In(loc), loc)
 	slog.Info("Daemon started. Monitoring active.", "next_run", initialTarget.Format("2006-01-02 15:04:05 (MST)"))
