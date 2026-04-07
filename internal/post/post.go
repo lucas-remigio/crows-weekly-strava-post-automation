@@ -13,24 +13,24 @@ type sportBreakdown struct {
 }
 
 var sportTypePT = map[string]string{
-	"run":              "Corrida",
-	"trailrun":         "Corrida em Trilho",
-	"walk":             "Caminhada",
-	"hike":             "Caminhada",
-	"ride":             "Ciclismo",
-	"virtualride":      "Ciclismo",
-	"ebikeride":        "Ciclismo",
-	"mountainbikeride": "Ciclismo",
-	"gravelride":       "Ciclismo",
-	"cyclocross":       "Ciclismo",
-	"velomobile":       "Ciclismo",
-	"swim":             "Natação",
-	"rowing":           "Remo",
-	"workout":          "Treino",
-	"weighttraining":   "Musculação",
-	"yoga":             "Yoga",
-	"unknown":          "Desconhecido",
-	"":                 "Desconhecido",
+	"run":              "🏃 Corrida",
+	"trailrun":         "⛰️ Corrida em Trilho",
+	"walk":             "🚶 Caminhada",
+	"hike":             "🥾 Caminhada",
+	"ride":             "🚴 Ciclismo",
+	"virtualride":      "🚴 Ciclismo",
+	"ebikeride":        "🚴 Ciclismo",
+	"mountainbikeride": "🚵 Ciclismo",
+	"gravelride":       "🚴 Ciclismo",
+	"cyclocross":       "🚴 Ciclismo",
+	"velomobile":       "🚴 Ciclismo",
+	"swim":             "🏊 Natação",
+	"rowing":           "🚣 Remo",
+	"workout":          "💪 Treino",
+	"weighttraining":   "🏋️ Musculação",
+	"yoga":             "🧘 Yoga",
+	"unknown":          "❓ Desconhecido",
+	"":                 "❓ Desconhecido",
 }
 
 type WeekBounds struct {
@@ -61,7 +61,7 @@ func MondayOfISOWeek(year, week int) time.Time {
 	return week1Monday.AddDate(0, 0, (week-1)*7)
 }
 
-func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalKM int, weeklyKMBySport map[string]float64) string {
+func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalKM int, weeklyKMBySport, weeklyKMByAthlete map[string]float64) string {
 	annualPct := annualKM / float64(goalKM) * 100
 	weekPct := float64(weekNumber) / float64(totalWeeks) * 100
 	onPaceKM := (float64(goalKM) / float64(totalWeeks)) * float64(weekNumber)
@@ -73,6 +73,8 @@ func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalK
 	}
 
 	lines = append(lines, formatWeeklyBySportLines(weeklyKMBySport)...)
+	lines = append(lines, "")
+	lines = append(lines, formatWeeklyByAthleteLines(weeklyKMByAthlete)...)
 	lines = append(lines,
 		"",
 		fmt.Sprintf("Total anual: %.1f / %d km (%.1f%%)", annualKM, goalKM, annualPct),
@@ -88,6 +90,47 @@ func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalK
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func formatWeeklyByAthleteLines(weeklyKMByAthlete map[string]float64) []string {
+	if len(weeklyKMByAthlete) == 0 {
+		return []string{"Leaderboard:", "└─ -"}
+	}
+
+	type athleteScore struct {
+		Name string
+		KM   float64
+	}
+
+	var items []athleteScore
+	for name, km := range weeklyKMByAthlete {
+		items = append(items, athleteScore{Name: name, KM: km})
+	}
+
+	// Sort descending by KM
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].KM > items[j].KM
+	})
+
+	medals := []string{"🥇", "🥈", "🥉"}
+
+	lines := make([]string, 0, len(items)+1)
+	lines = append(lines, "Leaderboard da Semana:")
+	for i, item := range items {
+		prefix := "├─"
+		if i == len(items)-1 {
+			prefix = "└─"
+		}
+
+		rank := "💩"
+		if i < len(medals) {
+			rank = medals[i]
+		}
+
+		lines = append(lines, fmt.Sprintf("%s %s %s: %.1f km", prefix, rank, item.Name, item.KM))
+	}
+
+	return lines
 }
 
 func formatWeeklyBySportLines(weeklyKMBySport map[string]float64) []string {

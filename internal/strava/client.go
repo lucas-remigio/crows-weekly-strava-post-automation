@@ -40,6 +40,18 @@ type Activity struct {
 	SportType string  `json:"sport_type"`
 	Type      string  `json:"type"`
 	StartDate string  `json:"start_date"`
+	Athlete   struct {
+		Firstname string `json:"firstname"`
+		Lastname  string `json:"lastname"`
+	} `json:"athlete"`
+}
+
+func (a Activity) AthleteName() string {
+	name := strings.TrimSpace(a.Athlete.Firstname + " " + a.Athlete.Lastname)
+	if name == "" {
+		return "Desconhecido"
+	}
+	return name
 }
 
 func (a Activity) EffectiveSportType() string {
@@ -196,6 +208,34 @@ func SumWeeklyDistanceBySportKM(activities []Activity, sportTypes []string) map[
 	}
 
 	return kmByType
+}
+
+func SumWeeklyDistanceByAthleteKM(activities []Activity, sportTypes []string) map[string]float64 {
+	metersByAthlete := make(map[string]float64)
+	allowedSports := make(map[string]struct{}, len(sportTypes))
+	for _, sport := range sportTypes {
+		allowedSports[sport] = struct{}{}
+	}
+
+	for _, activity := range activities {
+		sportType := activity.EffectiveSportType()
+
+		if len(allowedSports) > 0 {
+			if _, ok := allowedSports[sportType]; !ok {
+				continue
+			}
+		}
+
+		athleteName := activity.AthleteName()
+		metersByAthlete[athleteName] += activity.Distance
+	}
+
+	kmByAthlete := make(map[string]float64, len(metersByAthlete))
+	for name, meters := range metersByAthlete {
+		kmByAthlete[name] = math.Round(meters/1000*100) / 100
+	}
+
+	return kmByAthlete
 }
 
 func SumWeeklyDistanceKM(activities []Activity, sportTypes []string) float64 {
