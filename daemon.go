@@ -10,6 +10,9 @@ func runDaemon() {
 	slog.Info("Starting Strava Crows Weekly Post daemon mode...")
 	loc := getLisbonTimezone()
 
+	initialTarget := calculateNextRunTime(time.Now().In(loc), loc)
+	slog.Info("Daemon started. Monitoring active.", "next_run", initialTarget.Format("2006-01-02 15:04:05 (MST)"))
+
 	for {
 		now := time.Now().In(loc)
 		target := calculateNextRunTime(now, loc)
