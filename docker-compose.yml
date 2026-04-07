@@ -1,0 +1,8 @@
+services:
+  strava-weekly-post:
+    image: lucasremigio/strava-weekly-post:${TAG:-latest}
+    container_name: strava-weekly-post
+    restart: always
+    mem_limit: 256m
+    env_file:
+      - .env

@@ -33,14 +33,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.26.1"
-          cache-dependency-path: go/go.sum
+          cache-dependency-path: go.sum
 
       - name: Download dependencies
-        working-directory: ./go
         run: go mod download
 
       - name: Run weekly post script
-        working-directory: ./go
         env:
           STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
           STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}

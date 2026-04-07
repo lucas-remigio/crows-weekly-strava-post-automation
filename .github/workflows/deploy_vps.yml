@@ -28,8 +28,8 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
-          context: ./go
-          file: ./go/Dockerfile
+          context: .
+          file: ./Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
@@ -40,18 +40,12 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    env:
-      APP_DIR: $HOME/apps/strava-weekly-post
-      IMAGE_NAME: lucasremigio/strava-weekly-post
-      CONTAINER_MEMORY: 256m
-
     steps:
-      - name: Configure VPS runtime and cron
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create .env file securely
         env:
-          APP_DIR: ${{ env.APP_DIR }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          CONTAINER_MEMORY: ${{ env.CONTAINER_MEMORY }}
           STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
           STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
           STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
@@ -65,56 +59,47 @@ jobs:
           TOTAL_WEEKS: ${{ vars.TOTAL_WEEKS }}
           SPORT_TYPES: ${{ vars.SPORT_TYPES }}
           HTTP_TIMEOUT_SECONDS: ${{ vars.HTTP_TIMEOUT_SECONDS }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script_stop: false
-          envs: APP_DIR,IMAGE_NAME,CONTAINER_MEMORY,STRAVA_CLIENT_ID,STRAVA_CLIENT_SECRET,STRAVA_REFRESH_TOKEN,STRAVA_CLUB_ID,GOOGLE_SERVICE_ACCOUNT_JSON,GOOGLE_SHEET_ID,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_IDS,OPENAI_API_KEY,ANNUAL_GOAL_KM,TOTAL_WEEKS,SPORT_TYPES,HTTP_TIMEOUT_SECONDS
-          script: |
-            set -euo pipefail
+        run: |
+          cat << EOF > .env
+          STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID
+          STRAVA_CLIENT_SECRET=$STRAVA_CLIENT_SECRET
+          STRAVA_REFRESH_TOKEN=$STRAVA_REFRESH_TOKEN
+          STRAVA_CLUB_ID=$STRAVA_CLUB_ID
+          GOOGLE_SERVICE_ACCOUNT_JSON=$GOOGLE_SERVICE_ACCOUNT_JSON
+          GOOGLE_SHEET_ID=$GOOGLE_SHEET_ID
+          TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+          TELEGRAM_CHAT_IDS=$TELEGRAM_CHAT_IDS
+          OPENAI_API_KEY=$OPENAI_API_KEY
+          ANNUAL_GOAL_KM=$ANNUAL_GOAL_KM
+          TOTAL_WEEKS=$TOTAL_WEEKS
+          SPORT_TYPES=$SPORT_TYPES
+          HTTP_TIMEOUT_SECONDS=$HTTP_TIMEOUT_SECONDS
+          EOF
 
-            mkdir -p "$APP_DIR"
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
-            cat > "$APP_DIR/.env" << ENVEOF
-            STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID
-            STRAVA_CLIENT_SECRET=$STRAVA_CLIENT_SECRET
-            STRAVA_REFRESH_TOKEN=$STRAVA_REFRESH_TOKEN
-            STRAVA_CLUB_ID=$STRAVA_CLUB_ID
-            GOOGLE_SERVICE_ACCOUNT_JSON=$GOOGLE_SERVICE_ACCOUNT_JSON
-            GOOGLE_SHEET_ID=$GOOGLE_SHEET_ID
-            TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
-            TELEGRAM_CHAT_IDS=$TELEGRAM_CHAT_IDS
-            OPENAI_API_KEY=$OPENAI_API_KEY
-            ANNUAL_GOAL_KM=$ANNUAL_GOAL_KM
-            TOTAL_WEEKS=$TOTAL_WEEKS
-            SPORT_TYPES=$SPORT_TYPES
-            HTTP_TIMEOUT_SECONDS=$HTTP_TIMEOUT_SECONDS
-            ENVEOF
+      - name: Copy deployment files to VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p ~/apps/strava-weekly-post"
+          scp docker-compose.yml .env ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/apps/strava-weekly-post/
 
-            cat > "$APP_DIR/run_weekly.sh" << 'SCRIPTEOF'
-            #!/usr/bin/env bash
-            set -euo pipefail
+      - name: Deploy to VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << EOF
+            export TAG=${{ github.sha }}
+            cd ~/apps/strava-weekly-post
 
-            APP_DIR="${APP_DIR:-$HOME/apps/strava-weekly-post}"
-            IMAGE="${IMAGE_NAME:-lucasremigio/strava-weekly-post}:latest"
-            MEMORY_LIMIT="${CONTAINER_MEMORY:-256m}"
+            # Pull the exact version we just built
+            docker pull lucasremigio/strava-weekly-post:\$TAG
 
-            {
-              echo "=== $(date -Is) START ==="
-              docker pull "$IMAGE"
-              docker run --rm --memory "$MEMORY_LIMIT" --memory-swap "$MEMORY_LIMIT" --env-file "$APP_DIR/.env" "$IMAGE" ./weekly-post
-              rc=$?
-              echo "=== $(date -Is) END rc=$rc ==="
-              exit $rc
-            } >> "$APP_DIR/weekly.log" 2>&1
-            SCRIPTEOF
-
-            chmod +x "$APP_DIR/run_weekly.sh"
-
-            CRON_LINE='0 22 * * 0 /bin/bash -lc "$HOME/apps/strava-weekly-post/run_weekly.sh"'
-            (crontab -l 2>/dev/null | grep -v 'strava-weekly-post/run_weekly.sh' | grep -v '^CRON_TZ=Europe/Lisbon$' || true; \
-             echo 'CRON_TZ=Europe/Lisbon'; \
-             echo "$CRON_LINE") | crontab -
-
-            docker pull "$IMAGE_NAME:latest"
+            # Deploy the container quietly
+            docker compose up -d --force-recreate --remove-orphans
+            
+            # Clean up old images (keeps disk usage low)
+            docker image prune -a -f
+          EOF

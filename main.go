@@ -18,18 +18,64 @@ import (
 func main() {
 	dryRun := flag.Bool("dry-run", false, "Fetch and print the post, but skip Sheets write and Telegram send.")
 	week := flag.Int("week", 0, "ISO week number to process (0 = current week). Use to recover a missed run.")
+	daemon := flag.Bool("daemon", true, "Run continuously as a daemon and trigger automatically every Sunday at 22:00")
 	flag.Parse()
 
-	if err := run(*dryRun, *week, time.Now()); err != nil {
-		if errors.Is(err, errDuplicateWeek) {
-			slog.Warn("Week already exists in the sheet — exiting to avoid duplicate.")
-			os.Exit(0)
+	if *daemon && !*dryRun && *week == 0 {
+		runDaemon()
+	} else {
+		// Manual one-off run
+		if err := run(*dryRun, *week, time.Now()); err != nil {
+			if errors.Is(err, errDuplicateWeek) {
+				slog.Warn("Week already exists in the sheet — exiting to avoid duplicate.")
+				os.Exit(0)
+			}
+			slog.Error("Run failed", "error", err)
+			os.Exit(1)
 		}
-		slog.Error("Run failed", "error", err)
-		os.Exit(1)
+		slog.Info("Done.")
+	}
+}
+
+func runDaemon() {
+	slog.Info("Starting Strava Crows Weekly Post daemon mode...")
+	loc, err := time.LoadLocation("Europe/Lisbon")
+	if err != nil {
+		slog.Warn("Failed to load Lisbon timezone. Falling back to UTC.", "error", err)
+		loc = time.UTC
 	}
 
-	slog.Info("Done.")
+	for {
+		now := time.Now().In(loc)
+		// We want Sunday at 22:00:00
+		daysUntilSunday := int(time.Sunday - now.Weekday())
+		if daysUntilSunday < 0 {
+			daysUntilSunday += 7 // next week
+		}
+
+		target := time.Date(now.Year(), now.Month(), now.Day()+daysUntilSunday, 22, 0, 0, 0, loc)
+
+		// If today is Sunday but it's already past 22:00, schedule for *next* Sunday
+		if now.After(target) {
+			target = target.AddDate(0, 0, 7)
+		}
+
+		sleepDuration := target.Sub(now)
+		slog.Info("Sleeping until next run...", "target", target.Format(time.RFC3339))
+		time.Sleep(sleepDuration)
+
+		slog.Info("Wake up! Triggering weekly post.")
+		if err := run(false, 0, time.Now()); err != nil {
+			if errors.Is(err, errDuplicateWeek) {
+				slog.Warn("Week already exists in the sheet — skipping duplicate alert.")
+			} else {
+				slog.Error("Scheduled run failed", "error", err)
+			}
+		}
+
+		// Sleep slightly to avoid double firing in the same minute
+		time.Sleep(1 * time.Minute)
+	}
 }
 
 var errDuplicateWeek = errors.New("week already exists")

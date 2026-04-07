@@ -1,14 +1,26 @@
-FROM python:3.12-slim
+# ── Build stage ───────────────────────────────────────────────────────────────
+FROM golang:1.26.1-alpine AS builder
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+WORKDIR /build
+
+COPY go.mod ./
+COPY go.sum ./
+RUN go mod download
+
+COPY *.go ./
+COPY internal ./internal
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o weekly-post .
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM alpine:3.19
+
+# ca-certificates: needed for HTTPS to Strava, Google, Telegram, OpenAI
+# tzdata: needed for correct timezone handling
+RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=builder /build/weekly-post .
 
-COPY src ./src
-COPY setup ./setup
-
-CMD ["python", "-m", "src.main"]
+CMD ["./weekly-post"]
