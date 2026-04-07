@@ -1,12 +1,22 @@
 .git
-.github
-.venv
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache
-.mypy_cache
-.DS_Store
+.gitignore
+.dockerignore
+
+# Credentials & Config
 .env
 key.json
+
+# Environment
+.venv/
+__pycache__/
+
+# Binaries
+strava-weekly-post
+bin/
+obj/
+
+# OS & Editor
+.DS_Store
+.vscode/
+.idea/
+README.md
