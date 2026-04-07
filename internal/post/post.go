@@ -73,7 +73,31 @@ func renderProgressBar(percentage float64, totalBlocks int) string {
 	return strings.Repeat("█", filled) + strings.Repeat("░", empty)
 }
 
-func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalKM int, weeklyKMBySport, weeklyKMByAthlete map[string]float64) string {
+type WeeklyStats struct {
+	TotalDistanceKM    float64
+	DistanceBySport    map[string]float64
+	DistanceByAthlete  map[string]float64
+	ElevationByAthlete map[string]float64
+	TimeByAthlete      map[string]int
+	TotalElevation     float64
+	TotalMovingTime    int
+	MountainGoat       string
+	MachineAthlete     string
+	EpicActivityName   string
+	EpicAthlete        string
+	EpicActivityKM     float64
+}
+
+func formatDuration(seconds int) string {
+	hours := seconds / 3600
+	minutes := (seconds % 3600) / 60
+	if hours > 0 {
+		return fmt.Sprintf("%dh %02dmin", hours, minutes)
+	}
+	return fmt.Sprintf("%dmin", minutes)
+}
+
+func BuildPostText(weekNumber, totalWeeks int, annualKM float64, goalKM int, stats WeeklyStats) string {
 	annualPct := annualKM / float64(goalKM) * 100
 	weekPct := float64(weekNumber) / float64(totalWeeks) * 100
 	onPaceKM := (float64(goalKM) / float64(totalWeeks)) * float64(weekNumber)
@@ -81,16 +105,30 @@ func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalK
 	lines := []string{
 		fmt.Sprintf("Semana %d/%d (%.1f%%)", weekNumber, totalWeeks, weekPct),
 		"",
-		fmt.Sprintf("Total semanal: %.1f km", weeklyKM),
+		fmt.Sprintf("Total semanal: %.1f km", stats.TotalDistanceKM),
+	}
+	lines = append(lines, formatWeeklyBySportLines(stats.DistanceBySport)...)
+	lines = append(lines, "")
+
+	if stats.TotalMovingTime > 0 {
+		lines = append(lines, fmt.Sprintf("⏱️ Tempo em movimento: %s", formatDuration(stats.TotalMovingTime)))
 	}
 
-	lines = append(lines, formatWeeklyBySportLines(weeklyKMBySport)...)
+	if stats.TotalElevation > 0 {
+		lines = append(lines, fmt.Sprintf("⛰️ Subimos juntos: %.0f metros", stats.TotalElevation))
+	}
 	lines = append(lines, "")
-	lines = append(lines, formatWeeklyByAthleteLines(weeklyKMByAthlete)...)
 
-	if numAthletes := len(weeklyKMByAthlete); numAthletes > 0 {
-		avgKM := weeklyKM / float64(numAthletes)
-		lines = append(lines, fmt.Sprintf("Média por atleta esta semana: %.1f km", avgKM))
+	lines = append(lines, formatWeeklyByAthleteLines(stats)...)
+
+	if numAthletes := len(stats.DistanceByAthlete); numAthletes > 0 {
+		avgKM := stats.TotalDistanceKM / float64(numAthletes)
+		avgTime := stats.TotalMovingTime / numAthletes
+		avgElev := stats.TotalElevation / float64(numAthletes)
+
+		lines = append(lines, fmt.Sprintf("Média por atleta: %.1f km | %s | +%.0fm alt.", avgKM, formatDuration(avgTime), avgElev))
+		lines = append(lines, fmt.Sprintf("\n🔥 Destaque: A volta épica do(a) %s", stats.EpicAthlete))
+		lines = append(lines, fmt.Sprintf(" '%s' com uns incríveis %.1f km!", stats.EpicActivityName, stats.EpicActivityKM))
 	}
 
 	bar := renderProgressBar(annualPct, 10)
@@ -111,8 +149,8 @@ func BuildPostText(weekNumber, totalWeeks int, weeklyKM, annualKM float64, goalK
 	return strings.Join(lines, "\n")
 }
 
-func formatWeeklyByAthleteLines(weeklyKMByAthlete map[string]float64) []string {
-	if len(weeklyKMByAthlete) == 0 {
+func formatWeeklyByAthleteLines(stats WeeklyStats) []string {
+	if len(stats.DistanceByAthlete) == 0 {
 		return []string{"Leaderboard:", "└─ -"}
 	}
 
@@ -122,7 +160,7 @@ func formatWeeklyByAthleteLines(weeklyKMByAthlete map[string]float64) []string {
 	}
 
 	var items []athleteScore
-	for name, km := range weeklyKMByAthlete {
+	for name, km := range stats.DistanceByAthlete {
 		items = append(items, athleteScore{Name: name, KM: km})
 	}
 
@@ -148,10 +186,35 @@ func formatWeeklyByAthleteLines(weeklyKMByAthlete map[string]float64) []string {
 
 		badge := ""
 		if item.KM > 50 {
-			badge = " (🚀 Lenda)"
+			badge += " 🚀 Lenda"
+		}
+		if item.Name == stats.MountainGoat && stats.MountainGoat != "" {
+			badge += " 🐐 Cabra da Montanha"
+		}
+		if item.Name == stats.MachineAthlete && stats.MachineAthlete != "" {
+			badge += " 🤖 Papa-Treinos"
 		}
 
-		lines = append(lines, fmt.Sprintf("%s %s %s: %.1f km%s", prefix, rank, item.Name, item.KM, badge))
+		extras := ""
+		if time, ok := stats.TimeByAthlete[item.Name]; ok && time > 0 {
+			extras += formatDuration(time)
+		}
+		if elev, ok := stats.ElevationByAthlete[item.Name]; ok && elev > 0 {
+			if extras != "" {
+				extras += " | "
+			}
+			extras += fmt.Sprintf("+%.0fm alt.", elev)
+		}
+
+		if extras != "" {
+			extras = fmt.Sprintf(" (%s)", extras)
+		}
+
+		if badge != "" {
+			badge = fmt.Sprintf(" (%s)", strings.TrimSpace(badge))
+		}
+
+		lines = append(lines, fmt.Sprintf("%s %s %s: %.1f km%s%s", prefix, rank, item.Name, item.KM, extras, badge))
 	}
 
 	return lines

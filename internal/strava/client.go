@@ -34,13 +34,15 @@ type TokenRefreshResponse struct {
 }
 
 type Activity struct {
-	ID        int64   `json:"id"`
-	Name      string  `json:"name"`
-	Distance  float64 `json:"distance"`
-	SportType string  `json:"sport_type"`
-	Type      string  `json:"type"`
-	StartDate string  `json:"start_date"`
-	Athlete   struct {
+	ID                 int64   `json:"id"`
+	Name               string  `json:"name"`
+	Distance           float64 `json:"distance"`
+	TotalElevationGain float64 `json:"total_elevation_gain"`
+	MovingTime         int     `json:"moving_time"`
+	SportType          string  `json:"sport_type"`
+	Type               string  `json:"type"`
+	StartDate          string  `json:"start_date"`
+	Athlete            struct {
 		Firstname string `json:"firstname"`
 		Lastname  string `json:"lastname"`
 	} `json:"athlete"`
@@ -236,6 +238,106 @@ func SumWeeklyDistanceByAthleteKM(activities []Activity, sportTypes []string) ma
 	}
 
 	return kmByAthlete
+}
+
+type WeeklyStats struct {
+	TotalDistanceKM    float64
+	DistanceBySport    map[string]float64
+	DistanceByAthlete  map[string]float64
+	ElevationByAthlete map[string]float64
+	TimeByAthlete      map[string]int
+	TotalElevation     float64
+	TotalMovingTime    int
+	MountainGoat       string
+	MachineAthlete     string
+	EpicActivityName   string
+	EpicAthlete        string
+	EpicActivityKM     float64
+}
+
+func AggregateWeeklyStats(activities []Activity, sportTypes []string) WeeklyStats {
+	allowedSports := make(map[string]struct{}, len(sportTypes))
+	for _, sport := range sportTypes {
+		allowedSports[sport] = struct{}{}
+	}
+
+	metersByType := make(map[string]float64)
+	metersByAthlete := make(map[string]float64)
+	elevationByAthlete := make(map[string]float64)
+	timeByAthlete := make(map[string]int)
+	activitiesByAthlete := make(map[string]int)
+
+	var totalMeters, totalElevation float64
+	var totalTime int
+	var epic Activity
+
+	for _, activity := range activities {
+		sportType := activity.EffectiveSportType()
+		if sportType == "" {
+			sportType = "Unknown"
+		}
+
+		if len(allowedSports) > 0 {
+			if _, ok := allowedSports[sportType]; !ok {
+				continue
+			}
+		}
+
+		athleteName := activity.AthleteName()
+
+		totalMeters += activity.Distance
+		totalElevation += activity.TotalElevationGain
+		totalTime += activity.MovingTime
+
+		metersByType[sportType] += activity.Distance
+		metersByAthlete[athleteName] += activity.Distance
+		elevationByAthlete[athleteName] += activity.TotalElevationGain
+		timeByAthlete[athleteName] += activity.MovingTime
+		activitiesByAthlete[athleteName]++
+
+		if activity.Distance > epic.Distance {
+			epic = activity
+		}
+	}
+
+	stats := WeeklyStats{
+		TotalDistanceKM:    math.Round(totalMeters/1000*100) / 100,
+		DistanceBySport:    make(map[string]float64, len(metersByType)),
+		DistanceByAthlete:  make(map[string]float64, len(metersByAthlete)),
+		ElevationByAthlete: elevationByAthlete,
+		TimeByAthlete:      timeByAthlete,
+		TotalElevation:     math.Round(totalElevation),
+		TotalMovingTime:    totalTime,
+		EpicActivityName:   epic.Name,
+		EpicAthlete:        epic.AthleteName(),
+		EpicActivityKM:     math.Round(epic.Distance/1000*100) / 100,
+	}
+
+	for sportType, meters := range metersByType {
+		stats.DistanceBySport[sportType] = math.Round(meters/1000*100) / 100
+	}
+
+	for name, meters := range metersByAthlete {
+		stats.DistanceByAthlete[name] = math.Round(meters/1000*100) / 100
+	}
+
+	maxElev := -1.0
+	for ath, elev := range elevationByAthlete {
+		if elev > maxElev {
+			maxElev = elev
+			stats.MountainGoat = ath
+		}
+	}
+
+	maxActs := 0
+	for ath, acts := range activitiesByAthlete {
+		if acts > maxActs {
+			maxActs = acts
+			stats.MachineAthlete = ath
+		}
+	}
+
+	return stats
 }
 
 func SumWeeklyDistanceKM(activities []Activity, sportTypes []string) float64 {

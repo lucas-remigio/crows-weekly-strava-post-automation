@@ -43,17 +43,17 @@ func run(dryRun bool, week int, now time.Time) error {
 		}
 	}
 
-	weeklyKM, weeklyKMBySport, weeklyKMByAthlete, err := fetchStravaStats(cfg, forDate)
+	stats, err := fetchStravaStats(cfg, forDate)
 	if err != nil {
 		return err
 	}
 
-	newAnnualKM, err := calculateNewAnnualTotal(sc, weeklyKM)
+	newAnnualKM, err := calculateNewAnnualTotal(sc, stats.TotalDistanceKM)
 	if err != nil {
 		return err
 	}
 
-	postText := compilePost(cfg, sc, bounds, newAnnualKM, weeklyKM, weeklyKMBySport, weeklyKMByAthlete)
+	postText := compilePost(cfg, sc, bounds, newAnnualKM, stats)
 	printPostText(postText)
 
 	if dryRun {
@@ -61,7 +61,7 @@ func run(dryRun bool, week int, now time.Time) error {
 		return nil
 	}
 
-	return publishResults(cfg, sc, bounds, postText, weeklyKM, newAnnualKM)
+	return publishResults(cfg, sc, bounds, postText, stats.TotalDistanceKM, newAnnualKM)
 }
 
 func checkDuplicateWeek(sc *sheets.Client, weekNumber int) error {
@@ -75,7 +75,7 @@ func checkDuplicateWeek(sc *sheets.Client, weekNumber int) error {
 	return nil
 }
 
-func fetchStravaStats(cfg Config, forDate time.Time) (float64, map[string]float64, map[string]float64, error) {
+func fetchStravaStats(cfg Config, forDate time.Time) (strava.WeeklyStats, error) {
 	stravaClient := strava.NewClient(
 		cfg.StravaClientID, cfg.StravaClientSecret, cfg.StravaRefreshToken,
 		cfg.StravaClubID, cfg.HTTPTimeoutSeconds,
@@ -83,17 +83,15 @@ func fetchStravaStats(cfg Config, forDate time.Time) (float64, map[string]float6
 
 	accessToken, err := stravaClient.RefreshToken()
 	if err != nil {
-		return 0, nil, nil, fmt.Errorf("refresh Strava token: %w", err)
+		return strava.WeeklyStats{}, fmt.Errorf("refresh Strava token: %w", err)
 	}
 
 	activities, err := stravaClient.FetchClubActivities(accessToken, forDate)
 	if err != nil {
-		return 0, nil, nil, fmt.Errorf("fetch Strava activities: %w", err)
+		return strava.WeeklyStats{}, fmt.Errorf("fetch Strava activities: %w", err)
 	}
 
-	return strava.SumWeeklyDistanceKM(activities, cfg.SportTypes),
-		strava.SumWeeklyDistanceBySportKM(activities, cfg.SportTypes),
-		strava.SumWeeklyDistanceByAthleteKM(activities, cfg.SportTypes), nil
+	return strava.AggregateWeeklyStats(activities, cfg.SportTypes), nil
 }
 
 func calculateNewAnnualTotal(sc *sheets.Client, weeklyKM float64) (float64, error) {
@@ -107,12 +105,25 @@ func calculateNewAnnualTotal(sc *sheets.Client, weeklyKM float64) (float64, erro
 	return newAnnualKM, nil
 }
 
-func compilePost(cfg Config, sc *sheets.Client, bounds postpkg.WeekBounds, newAnnualKM, weeklyKM float64, bySport map[string]float64, byAthlete map[string]float64) string {
+func compilePost(cfg Config, sc *sheets.Client, bounds postpkg.WeekBounds, newAnnualKM float64, stats strava.WeeklyStats) string {
 	onPaceKM := (float64(cfg.AnnualGoalKM) / float64(cfg.TotalWeeks)) * float64(bounds.WeekNumber)
 	athletes := getAthletes(sc)
 
 	roast := generateWeeklyRoast(cfg, athletes, newAnnualKM >= onPaceKM, math.Abs(newAnnualKM-onPaceKM))
-	postText := postpkg.BuildPostText(bounds.WeekNumber, cfg.TotalWeeks, weeklyKM, newAnnualKM, cfg.AnnualGoalKM, bySport, byAthlete)
+	postText := postpkg.BuildPostText(bounds.WeekNumber, cfg.TotalWeeks, newAnnualKM, cfg.AnnualGoalKM, postpkg.WeeklyStats{
+		TotalDistanceKM:    stats.TotalDistanceKM,
+		DistanceBySport:    stats.DistanceBySport,
+		DistanceByAthlete:  stats.DistanceByAthlete,
+		ElevationByAthlete: stats.ElevationByAthlete,
+		TimeByAthlete:      stats.TimeByAthlete,
+		TotalElevation:     stats.TotalElevation,
+		TotalMovingTime:    stats.TotalMovingTime,
+		MountainGoat:       stats.MountainGoat,
+		MachineAthlete:     stats.MachineAthlete,
+		EpicActivityName:   stats.EpicActivityName,
+		EpicAthlete:        stats.EpicAthlete,
+		EpicActivityKM:     stats.EpicActivityKM,
+	})
 
 	if roast != "" {
 		return roast + "\n\n" + postText
