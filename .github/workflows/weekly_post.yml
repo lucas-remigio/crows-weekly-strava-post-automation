@@ -49,7 +49,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
           ANNUAL_GOAL_KM: ${{ vars.ANNUAL_GOAL_KM }}
-          TOTAL_WEEKS: ${{ vars.TOTAL_WEEKS }}
           SPORT_TYPES: ${{ vars.SPORT_TYPES }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |

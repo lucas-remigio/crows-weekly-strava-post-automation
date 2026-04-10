@@ -44,38 +44,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create .env file securely
-        env:
-          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
-          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
-          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
-          STRAVA_CLUB_ID: ${{ secrets.STRAVA_CLUB_ID }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANNUAL_GOAL_KM: ${{ vars.ANNUAL_GOAL_KM }}
-          TOTAL_WEEKS: ${{ vars.TOTAL_WEEKS }}
-          SPORT_TYPES: ${{ vars.SPORT_TYPES }}
-          HTTP_TIMEOUT_SECONDS: ${{ vars.HTTP_TIMEOUT_SECONDS }}
-        run: |
-          cat << EOF > .env
-          STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID
-          STRAVA_CLIENT_SECRET=$STRAVA_CLIENT_SECRET
-          STRAVA_REFRESH_TOKEN=$STRAVA_REFRESH_TOKEN
-          STRAVA_CLUB_ID=$STRAVA_CLUB_ID
-          GOOGLE_SERVICE_ACCOUNT_JSON=$GOOGLE_SERVICE_ACCOUNT_JSON
-          GOOGLE_SHEET_ID=$GOOGLE_SHEET_ID
-          TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
-          TELEGRAM_CHAT_IDS=$TELEGRAM_CHAT_IDS
-          OPENAI_API_KEY=$OPENAI_API_KEY
-          ANNUAL_GOAL_KM=$ANNUAL_GOAL_KM
-          TOTAL_WEEKS=$TOTAL_WEEKS
-          SPORT_TYPES=$SPORT_TYPES
-          HTTP_TIMEOUT_SECONDS=$HTTP_TIMEOUT_SECONDS
-          EOF
-
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
@@ -86,18 +54,29 @@ jobs:
       - name: Copy deployment files to VPS
         run: |
           scp docker-compose.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/strava-weekly-post-compose.yml
-          scp .env ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/.strava-weekly-post-env
 
       - name: Deploy to VPS
         run: |
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << EOF
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             export TAG=${{ github.sha }}
+            export STRAVA_CLIENT_ID='${{ secrets.STRAVA_CLIENT_ID }}'
+            export STRAVA_CLIENT_SECRET='${{ secrets.STRAVA_CLIENT_SECRET }}'
+            export STRAVA_REFRESH_TOKEN='${{ secrets.STRAVA_REFRESH_TOKEN }}'
+            export STRAVA_CLUB_ID='${{ secrets.STRAVA_CLUB_ID }}'
+            export GOOGLE_SERVICE_ACCOUNT_JSON='${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}'
+            export GOOGLE_SHEET_ID='${{ secrets.GOOGLE_SHEET_ID }}'
+            export TELEGRAM_BOT_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+            export TELEGRAM_CHAT_IDS='${{ secrets.TELEGRAM_CHAT_IDS }}'
+            export OPENAI_API_KEY='${{ secrets.OPENAI_API_KEY }}'
+            export ANNUAL_GOAL_KM='${{ vars.ANNUAL_GOAL_KM }}'
+            export SPORT_TYPES='${{ vars.SPORT_TYPES }}'
+            export HTTP_TIMEOUT_SECONDS='${{ vars.HTTP_TIMEOUT_SECONDS }}'
 
             # Pull the exact version we just built
-            docker pull lucasremigio/strava-weekly-post:\$TAG
+            docker pull lucasremigio/strava-weekly-post:${{ github.sha }}
 
             # Deploy the container quietly
-            docker compose -p strava -f strava-weekly-post-compose.yml --env-file .strava-weekly-post-env up -d --force-recreate --remove-orphans
+            docker compose -p strava -f strava-weekly-post-compose.yml up -d --force-recreate --remove-orphans
             
             # Clean up old images (keeps disk usage low)
             docker image prune -a -f
