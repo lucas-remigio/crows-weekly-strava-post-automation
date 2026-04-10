@@ -85,20 +85,19 @@ jobs:
 
       - name: Copy deployment files to VPS
         run: |
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p ~/apps/strava-weekly-post"
-          scp docker-compose.yml .env ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/apps/strava-weekly-post/
+          scp docker-compose.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/strava-weekly-post-compose.yml
+          scp .env ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/.strava-weekly-post-env
 
       - name: Deploy to VPS
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << EOF
             export TAG=${{ github.sha }}
-            cd ~/apps/strava-weekly-post
 
             # Pull the exact version we just built
             docker pull lucasremigio/strava-weekly-post:\$TAG
 
             # Deploy the container quietly
-            docker compose up -d --force-recreate --remove-orphans
+            docker compose -p strava -f strava-weekly-post-compose.yml --env-file .strava-weekly-post-env up -d --force-recreate --remove-orphans
             
             # Clean up old images (keeps disk usage low)
             docker image prune -a -f
