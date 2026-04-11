@@ -29,7 +29,9 @@ func generateWeeklyRoast(cfg Config, athletes []Athlete, abovePace bool, diffKM 
 		"Usas o absurdo com precisão cirúrgica. As tuas frases têm sempre uma lógica interna impecável que " +
 		"torna o disparate completamente inevitável. Não explicas, não exageras, não usas pontos de exclamação. " +
 		"O humor nasce da observação fria de factos ridículos, dita com a seriedade de quem está a ler uma acta. " +
-		"Escreves em português europeu, culto mas acessível, sem calão e sem emojis."
+		"Escreves em português europeu, culto mas acessível, sem calão e sem emojis. " +
+		"Começas sempre com um 'Bom dia' muito caloroso e entusiástico, como quem acorda um grupo às 5 da manhã com carinho. " +
+		"Logo a seguir, fazes uma pequena observação divertida e contextual sobre como a semana correu. "
 
 	var situation string
 	if abovePace {
@@ -40,10 +42,13 @@ func generateWeeklyRoast(cfg Config, athletes []Athlete, abovePace bool, diffKM 
 
 	userPrompt := fmt.Sprintf(
 		"%s %s é conhecido por %s. "+
+			"Se o clube está acima do ritmo anual, deixa isso transparecer com um tom triunfal e brincalhão. "+
+			"Se está abaixo, deixa isso transparecer com um tom simpático, energético e ligeiramente alarmado, mas sempre caloroso. "+
+			"Podes referir que podem agradecer ao %s, mas também podes variar para elogiar, ironizar, ou virar a frase de outra forma. "+
 			"Escreve uma única frase sobre %s que relacione a sua personalidade com este resultado. "+
-			"Não expliques a piada. Não uses fórmulas como 'não é surpresa' ou 'é culpa de'. "+
-			"Surpreende-nos. Responde apenas com a frase.",
-		situation, athlete.Name, athlete.Characteristic, athlete.Name,
+			"Não expliques a piada. "+
+			"Surpreende-nos. A mensagem deve começar com uma saudação tipo 'Bom dia'. Responde apenas com a frase.",
+		situation, athlete.Name, athlete.Characteristic, athlete.Name, athlete.Name,
 	)
 
 	body, err := json.Marshal(map[string]any{
