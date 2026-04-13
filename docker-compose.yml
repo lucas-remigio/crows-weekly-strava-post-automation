@@ -1,8 +1,21 @@
+name: strava-weekly-post
+
 services:
   strava-weekly-post:
     image: lucasremigio/strava-weekly-post:${TAG:-latest}
     container_name: strava-weekly-post
     restart: always
     mem_limit: 256m
-    env_file:
-      - .env
+    environment:
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
+      - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN}
+      - STRAVA_CLUB_ID=${STRAVA_CLUB_ID}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_IDS=${TELEGRAM_CHAT_IDS}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANNUAL_GOAL_KM=${ANNUAL_GOAL_KM}
+      - SPORT_TYPES=${SPORT_TYPES}
+      - HTTP_TIMEOUT_SECONDS=${HTTP_TIMEOUT_SECONDS}

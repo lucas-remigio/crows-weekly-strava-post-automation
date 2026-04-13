@@ -40,6 +40,8 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_PATH: ~/strava-weekly-post
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -53,12 +55,18 @@ jobs:
 
       - name: Copy deployment files to VPS
         run: |
-          scp docker-compose.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/strava-weekly-post-compose.yml
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p ${{ env.DEPLOY_PATH }}"
+          scp strava_crows_weekly_post/docker-compose.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ env.DEPLOY_PATH }}/docker-compose.yml
 
       - name: Deploy to VPS
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
-            export TAG=${{ github.sha }}
+            cd ${{ env.DEPLOY_PATH }}
+            
+            # Save the TAG to .env for manual restarts
+            echo "TAG=${{ github.sha }}" > .env
+
+            export TAG='${{ github.sha }}'
             export STRAVA_CLIENT_ID='${{ secrets.STRAVA_CLIENT_ID }}'
             export STRAVA_CLIENT_SECRET='${{ secrets.STRAVA_CLIENT_SECRET }}'
             export STRAVA_REFRESH_TOKEN='${{ secrets.STRAVA_REFRESH_TOKEN }}'
@@ -72,12 +80,7 @@ jobs:
             export SPORT_TYPES='${{ vars.SPORT_TYPES }}'
             export HTTP_TIMEOUT_SECONDS='${{ vars.HTTP_TIMEOUT_SECONDS }}'
 
-            # Pull the exact version we just built
-            docker pull lucasremigio/strava-weekly-post:${{ github.sha }}
-
-            # Deploy the container quietly
-            docker compose -p strava -f strava-weekly-post-compose.yml up -d --force-recreate --remove-orphans
-            
-            # Clean up old images (keeps disk usage low)
-            docker image prune -a -f
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
           EOF

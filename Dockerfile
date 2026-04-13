@@ -15,12 +15,16 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o weekly-post .
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM alpine:3.19
 
-# ca-certificates: needed for HTTPS to Strava, Google, Telegram, OpenAI
-# tzdata: needed for correct timezone handling
 RUN apk add --no-cache ca-certificates tzdata
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
 COPY --from=builder /build/weekly-post .
+
+RUN chown appuser:appgroup /app/weekly-post
+
+USER appuser
 
 CMD ["./weekly-post"]
