@@ -9,9 +9,60 @@ import (
 	"time"
 )
 
+type rateLimiter struct {
+	mu      sync.Mutex
+	history map[int64][]time.Time
+	limit   int
+	window  time.Duration
+}
+
+func newRateLimiter(limit int, window time.Duration) *rateLimiter {
+	return &rateLimiter{
+		history: make(map[int64][]time.Time),
+		limit:   limit,
+		window:  window,
+	}
+}
+
+// consume attempts to take n tokens. Returns allowed=true if successful.
+func (rl *rateLimiter) consume(chatID int64, tokens int) (allowed bool, waitMins int) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	var valid []time.Time
+
+	for _, t := range rl.history[chatID] {
+		if now.Sub(t) < rl.window {
+			valid = append(valid, t)
+		}
+	}
+	rl.history[chatID] = valid
+
+	if len(valid)+tokens > rl.limit {
+		idx := len(valid) + tokens - rl.limit - 1
+		if idx < 0 || idx >= len(valid) {
+			return false, int(rl.window.Minutes())
+		}
+		
+		neededToExpire := valid[idx]
+		waitDur := rl.window - now.Sub(neededToExpire)
+		mins := int(waitDur.Minutes())
+		if mins < 1 {
+			mins = 1
+		}
+		return false, mins
+	}
+
+	for i := 0; i < tokens; i++ {
+		rl.history[chatID] = append(rl.history[chatID], now)
+	}
+	return true, 0
+}
+
 var (
-	lastResumoTime = make(map[int64]time.Time)
-	resumoMutex    sync.Mutex
+	resumoLimiter  = newRateLimiter(3, time.Hour)
+	libraryLimiter = newRateLimiter(3, time.Hour)
 )
 
 func handleUnknownCommand(cfg Config, chatID int64, client *http.Client) {
@@ -19,30 +70,10 @@ func handleUnknownCommand(cfg Config, chatID int64, client *http.Client) {
 	_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "❓ Comando inválido.\n\nComandos disponíveis:\n/resumo - Gera um relatório de teste parcial da semana atual\n/livrarias - Verifica promoções na Wook e Fnac\n/wook - Verifica a promoção atual na Wook\n/fnac - Verifica a promoção atual na Fnac")
 }
 
-// tryConsumeRateLimit implements a thread-safe rate lock logic.
-// Returns `allowed` boolean and the remaining minutes to wait if rejected.
-func tryConsumeRateLimit(chatID int64) (allowed bool, waitMins int) {
-	resumoMutex.Lock()
-	defer resumoMutex.Unlock()
-
-	if lastUsed, exists := lastResumoTime[chatID]; exists {
-		if remaining := 30*time.Minute - time.Since(lastUsed); remaining > 0 {
-			mins := int(remaining.Minutes())
-			if mins < 1 {
-				mins = 1
-			}
-			return false, mins
-		}
-	}
-
-	lastResumoTime[chatID] = time.Now()
-	return true, 0
-}
-
 func handlePreviewCommand(cfg Config, chatID int64, client *http.Client) {
 	chatStr := strconv.FormatInt(chatID, 10)
 
-	allowed, waitMins := tryConsumeRateLimit(chatID)
+	allowed, waitMins := resumoLimiter.consume(chatID, 1)
 	if !allowed {
 		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, fmt.Sprintf("⏳ Por favor, aguarde %d minuto(s) antes de pedir um novo resumo para evitar spam nas APIs.", waitMins))
 		return
@@ -72,7 +103,7 @@ func handleWookCommand(cfg Config, chatID int64, client *http.Client) {
 	chatStr := strconv.FormatInt(chatID, 10)
 
 	// A bit of spam protection reusing the same mutex but maybe it's fine
-	allowed, waitMins := tryConsumeRateLimit(chatID)
+	allowed, waitMins := libraryLimiter.consume(chatID, 1)
 	if !allowed {
 		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, fmt.Sprintf("⏳ Por favor, aguarde %d minuto(s) antes de pedir uma nova verificação.", waitMins))
 		return
@@ -101,7 +132,7 @@ func doWookCheck(cfg Config, chatStr string, client *http.Client) {
 func handleFnacCommand(cfg Config, chatID int64, client *http.Client) {
 	chatStr := strconv.FormatInt(chatID, 10)
 
-	allowed, waitMins := tryConsumeRateLimit(chatID)
+	allowed, waitMins := libraryLimiter.consume(chatID, 1)
 	if !allowed {
 		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, fmt.Sprintf("⚠️ Demasiados pedidos. Por favor, aguarda %d minuto(s).", waitMins))
 		return
@@ -130,7 +161,7 @@ func doFnacCheck(cfg Config, chatStr string, client *http.Client) {
 func handleLibrariesCommand(cfg Config, chatID int64, client *http.Client) {
 	chatStr := strconv.FormatInt(chatID, 10)
 
-	allowed, waitMins := tryConsumeRateLimit(chatID)
+	allowed, waitMins := libraryLimiter.consume(chatID, 1)
 	if !allowed {
 		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, fmt.Sprintf("⏳ Por favor, aguarde %d minuto(s) antes de pedir uma nova verificação.", waitMins))
 		return
