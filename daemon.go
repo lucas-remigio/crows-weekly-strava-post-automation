@@ -14,8 +14,8 @@ func runDaemon() {
 	// 1. Launch the Telegram Commands background listener
 	go pollTelegramCommands(cfg)
 
-	// 2. Launch the Wook daily promo checker
-	go runWookDaemon(cfg, loc)
+	// 2. Launch the Libraries daily promo checker
+	go runLibrariesDaemon(cfg, loc)
 
 	initialTarget := calculateNextRunTime(time.Now().In(loc), loc)
 	slog.Info("Daemon started. Monitoring active.", "next_run", initialTarget.Format("2006-01-02 15:04:05 (MST)"))

@@ -22,3 +22,5 @@ __pycache__/
 .idea/
 wook_debug.html
 wook_debug_clean.html
+fnac_debug.html
+fnac_debug_clean.html

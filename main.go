@@ -12,14 +12,14 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "Fetch and print the post, but skip Sheets write and Telegram send.")
 	week := flag.Int("week", 0, "ISO week number to process (0 = current week). Use to recover a missed run.")
 	daemon := flag.Bool("daemon", true, "Run continuously as a daemon and trigger automatically every Sunday at 22:00")
-	testWook := flag.Bool("test-wook", false, "Fetch and print the current Wook promo, sending it to Telegram if configured, then exit.")
+	testLibraries := flag.Bool("test-libraries", false, "Test fetching and extracting all library promotions, then exit")
 	flag.Parse()
 
-	if *testWook {
+	if *testLibraries {
+		slog.Info("Testing Libraries promo extraction...")
 		cfg := loadConfig()
-		slog.Info("Testing Wook promo extraction...")
-		checkWookPromo(cfg)
-		slog.Info("Wook test complete. Exiting.")
+		checkLibrariesPromo(cfg)
+		slog.Info("Libraries test complete. Exiting.")
 		os.Exit(0)
 	}
 

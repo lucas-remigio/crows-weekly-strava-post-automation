@@ -63,6 +63,12 @@ func pollTelegramCommands(cfg Config) {
 			} else if strings.HasPrefix(text, "/wook") {
 				slog.Info("Received /wook command", "chat_id", update.Message.Chat.ID)
 				go handleWookCommand(cfg, update.Message.Chat.ID, client)
+			} else if strings.HasPrefix(text, "/fnac") {
+				slog.Info("Received /fnac command", "chat_id", update.Message.Chat.ID)
+				go handleFnacCommand(cfg, update.Message.Chat.ID, client)
+			} else if strings.HasPrefix(text, "/livrarias") {
+				slog.Info("Received /livrarias command", "chat_id", update.Message.Chat.ID)
+				go handleLibrariesCommand(cfg, update.Message.Chat.ID, client)
 			} else {
 				slog.Info("Received unknown command", "chat_id", update.Message.Chat.ID, "command", text)
 				go handleUnknownCommand(cfg, update.Message.Chat.ID, client)
@@ -88,7 +94,7 @@ func fetchUpdates(client *http.Client, token string, offset int) ([]telegramUpda
 
 func handleUnknownCommand(cfg Config, chatID int64, client *http.Client) {
 	chatStr := strconv.FormatInt(chatID, 10)
-	_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "❓ Comando inválido.\n\nComandos disponíveis:\n/resumo - Gera um relatório de teste parcial da semana atual\n/wook - Verifica a promoção atual na Wook")
+	_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "❓ Comando inválido.\n\nComandos disponíveis:\n/resumo - Gera um relatório de teste parcial da semana atual\n/livrarias - Verifica promoções na Wook e Fnac\n/wook - Verifica a promoção atual na Wook\n/fnac - Verifica a promoção atual na Fnac")
 }
 
 // tryConsumeRateLimit implements a thread-safe rate lock logic.
@@ -164,4 +170,35 @@ func handleWookCommand(cfg Config, chatID int64, client *http.Client) {
 	} else {
 		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, msg)
 	}
+}
+
+func handleFnacCommand(cfg Config, chatID int64, client *http.Client) {
+	chatStr := strconv.FormatInt(chatID, 10)
+
+	allowed, waitMins := tryConsumeRateLimit(chatID)
+	if !allowed {
+		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, fmt.Sprintf("⚠️ Demasiados pedidos. Por favor, aguarda %d minuto(s).", waitMins))
+		return
+	}
+
+	_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "⏳ A verificar a Fnac em tempo real (isto pode demorar uns segundos)...")
+
+	msg, err := getFnacPromoMessage(cfg)
+	if err != nil {
+		slog.Error("Failed to fetch fnac promo for /fnac", "error", err)
+		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "❌ Oops! Ocorreu um erro ao ler a página: "+err.Error())
+		return
+	}
+
+	if msg == "" {
+		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "Nenhuma promoção clara encontrada neste momento.")
+	} else {
+		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, msg)
+	}
+}
+
+func handleLibrariesCommand(cfg Config, chatID int64, client *http.Client) {
+	// Let Wook and Fnac handles run concurrently
+	go handleWookCommand(cfg, chatID, client)
+	go handleFnacCommand(cfg, chatID, client)
 }

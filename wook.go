@@ -2,41 +2,11 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"regexp"
 	"strings"
-	"time"
 )
-
-func runWookDaemon(cfg Config, loc *time.Location) {
-	slog.Info("Starting Wook Promo checker daemon mode...")
-
-	for {
-		now := time.Now().In(loc)
-		target := calculateNextWookRunTime(now, loc)
-
-		slog.Info("Wook Daemon sleeping until next run...", "target", target.Format(time.RFC3339))
-		time.Sleep(target.Sub(now))
-
-		slog.Info("Wook Daemon wake up! Checking promotions.")
-		checkWookPromo(cfg)
-
-		time.Sleep(1 * time.Minute) // Prevent double-triggering in the same minute
-	}
-}
-
-func calculateNextWookRunTime(now time.Time, loc *time.Location) time.Time {
-	// We want every day at 09:00:00 AM
-	target := time.Date(now.Year(), now.Month(), now.Day(), 9, 0, 0, 0, loc)
-
-	if now.After(target) || now.Equal(target) {
-		target = target.AddDate(0, 0, 1)
-	}
-	return target
-}
 
 func checkWookPromo(cfg Config) {
 	if cfg.WookTelegramChatID == "" {
@@ -74,6 +44,15 @@ func getWookPromoMessage(cfg Config) (string, error) {
 		return "", fmt.Errorf("No OPENAI_API_KEY configured")
 	}
 
+	// Optimization: Try to isolate only the main banner section to drastically shrink the payload
+	reCarousel := regexp.MustCompile(`(?is)<section class="personalized header-banner.*?</section>`)
+	if carouselMatch := reCarousel.FindString(html); carouselMatch != "" {
+		html = carouselMatch
+		slog.Info("Isolated main carousel section", "new_length", len(html))
+	} else {
+		slog.Warn("Could not isolate main carousel, using full HTML")
+	}
+
 	// Strip scripts and styles to save tokens and avoid truncation of real content
 	reScript := regexp.MustCompile(`(?is)<script.*?>.*?</script>`)
 	reStyle := regexp.MustCompile(`(?is)<style.*?>.*?</style>`)
@@ -107,31 +86,7 @@ func getWookPromoMessage(cfg Config) (string, error) {
 }
 
 func fetchWookHTML(timeoutSeconds int) (string, error) {
-	req, err := http.NewRequest("GET", "https://www.wook.pt", nil)
-	if err != nil {
-		return "", err
-	}
-	// Use a standard browser user agent and accept headers to bypass basic Cloudflare checks
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "pt-PT,pt;q=0.9,en-US;q=0.8,en;q=0.7")
-
-	client := httpClient(timeoutSeconds)
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	return string(bodyBytes), nil
+	return fetchHTML("https://www.wook.pt", timeoutSeconds)
 }
 
 func extractWookPromoWithOpenAI(cfg Config, html string) (string, error) {
