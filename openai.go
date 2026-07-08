@@ -51,24 +51,32 @@ func generateWeeklyRoast(cfg Config, athletes []Athlete, abovePace bool, diffKM 
 		situation, athlete.Name, athlete.Characteristic, athlete.Name, athlete.Name,
 	)
 
+	roast, err := callOpenAI(cfg, systemPrompt, userPrompt, 120, 1.1)
+	if err != nil {
+		slog.Error("Failed to generate roast", "error", err)
+		return ""
+	}
+	slog.Info("Roast generated", "roast", roast)
+	return roast
+}
+
+func callOpenAI(cfg Config, systemPrompt, userPrompt string, maxTokens int, temperature float64) (string, error) {
 	body, err := json.Marshal(map[string]any{
 		"model": "gpt-4o-mini",
 		"messages": []map[string]string{
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": userPrompt},
 		},
-		"max_tokens":  120,
-		"temperature": 1.1,
+		"max_tokens":  maxTokens,
+		"temperature": temperature,
 	})
 	if err != nil {
-		slog.Error("Failed to marshal OpenAI request", "error", err)
-		return ""
+		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, openAIURL, bytes.NewReader(body))
 	if err != nil {
-		slog.Error("Failed to create OpenAI request", "error", err)
-		return ""
+		return "", fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+cfg.OpenAIAPIKey)
@@ -76,14 +84,12 @@ func generateWeeklyRoast(cfg Config, athletes []Athlete, abovePace bool, diffKM 
 	client := httpClient(cfg.HTTPTimeoutSeconds)
 	resp, err := client.Do(req)
 	if err != nil {
-		slog.Error("OpenAI request failed", "error", err)
-		return ""
+		return "", fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if err := checkStatus(resp); err != nil {
-		slog.Error("OpenAI API error", "error", err)
-		return ""
+		return "", fmt.Errorf("api error: %w", err)
 	}
 
 	var result struct {
@@ -94,15 +100,12 @@ func generateWeeklyRoast(cfg Config, athletes []Athlete, abovePace bool, diffKM 
 		} `json:"choices"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		slog.Error("Failed to decode OpenAI response", "error", err)
-		return ""
+		return "", fmt.Errorf("decode response: %w", err)
 	}
 
 	if len(result.Choices) == 0 {
-		return ""
+		return "", nil
 	}
 
-	roast := strings.TrimSpace(result.Choices[0].Message.Content)
-	slog.Info("Roast generated", "roast", roast)
-	return roast
+	return strings.TrimSpace(result.Choices[0].Message.Content), nil
 }

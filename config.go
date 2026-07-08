@@ -19,6 +19,7 @@ type Config struct {
 	GoogleSheetID            string
 	TelegramBotToken         string
 	TelegramChatIDs          []string
+	WookTelegramChatID       string
 	OpenAIAPIKey             string
 	AnnualGoalKM             int
 	HTTPTimeoutSeconds       int
@@ -49,6 +50,7 @@ func loadConfig() Config {
 		GoogleSheetID:            os.Getenv("GOOGLE_SHEET_ID"),
 		TelegramBotToken:         os.Getenv("TELEGRAM_BOT_TOKEN"),
 		TelegramChatIDs:          splitNonEmpty(os.Getenv("TELEGRAM_CHAT_IDS")),
+		WookTelegramChatID:       os.Getenv("WOOK_TELEGRAM_CHAT_ID"),
 		OpenAIAPIKey:             os.Getenv("OPENAI_API_KEY"),
 		AnnualGoalKM:             envInt("ANNUAL_GOAL_KM", 12000),
 		HTTPTimeoutSeconds:       envInt("HTTP_TIMEOUT_SECONDS", 15),

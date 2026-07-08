@@ -60,6 +60,9 @@ func pollTelegramCommands(cfg Config) {
 			if strings.HasPrefix(text, "/resumo") {
 				slog.Info("Received /resumo command", "chat_id", update.Message.Chat.ID)
 				go handlePreviewCommand(cfg, update.Message.Chat.ID, client)
+			} else if strings.HasPrefix(text, "/wook") {
+				slog.Info("Received /wook command", "chat_id", update.Message.Chat.ID)
+				go handleWookCommand(cfg, update.Message.Chat.ID, client)
 			} else {
 				slog.Info("Received unknown command", "chat_id", update.Message.Chat.ID, "command", text)
 				go handleUnknownCommand(cfg, update.Message.Chat.ID, client)
@@ -85,7 +88,7 @@ func fetchUpdates(client *http.Client, token string, offset int) ([]telegramUpda
 
 func handleUnknownCommand(cfg Config, chatID int64, client *http.Client) {
 	chatStr := strconv.FormatInt(chatID, 10)
-	_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "❓ Comando inválido.\n\nComandos disponíveis:\n/resumo - Gera um relatório de teste parcial da semana atual")
+	_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "❓ Comando inválido.\n\nComandos disponíveis:\n/resumo - Gera um relatório de teste parcial da semana atual\n/wook - Verifica a promoção atual na Wook")
 }
 
 // tryConsumeRateLimit implements a thread-safe rate lock logic.
@@ -135,4 +138,30 @@ func generateDryRunPost(cfg Config) (string, error) {
 
 	postText, _, _, _, _, err := buildWeeklyPost(cfg, 0, time.Now(), false)
 	return postText, err
+}
+
+func handleWookCommand(cfg Config, chatID int64, client *http.Client) {
+	chatStr := strconv.FormatInt(chatID, 10)
+
+	// A bit of spam protection reusing the same mutex but maybe it's fine
+	allowed, waitMins := tryConsumeRateLimit(chatID)
+	if !allowed {
+		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, fmt.Sprintf("⏳ Por favor, aguarde %d minuto(s) antes de pedir uma nova verificação.", waitMins))
+		return
+	}
+
+	_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "⏳ A verificar a Wook em tempo real (isto pode demorar uns segundos)...")
+
+	msg, err := getWookPromoMessage(cfg)
+	if err != nil {
+		slog.Error("Failed to fetch wook promo for /wook", "error", err)
+		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "❌ Oops! Ocorreu um erro ao ler a página: "+err.Error())
+		return
+	}
+
+	if msg == "" {
+		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "Nenhuma promoção clara encontrada neste momento.")
+	} else {
+		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, msg)
+	}
 }
