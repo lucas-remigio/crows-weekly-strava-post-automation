@@ -77,13 +77,19 @@ func getWookPromoMessage(cfg Config) (string, error) {
 			return "", fmt.Errorf("No OPENAI_API_KEY configured for fallback")
 		}
 
-		// OpenAI has a high token limit for gpt-4o-mini, but let's be safe and trim to ~60k chars
-		if len(html) > 60000 {
+		// Strip scripts and styles to save tokens and avoid truncation of real content
+		reScript := regexp.MustCompile(`(?is)<script.*?>.*?</script>`)
+		reStyle := regexp.MustCompile(`(?is)<style.*?>.*?</style>`)
+		cleanHTML := reScript.ReplaceAllString(html, "")
+		cleanHTML = reStyle.ReplaceAllString(cleanHTML, "")
+
+		// OpenAI has a high token limit for gpt-4o-mini, let's allow up to 150k chars
+		if len(cleanHTML) > 150000 {
 			slog.Info("Trimmed the content of the html")
-			html = html[:60000]
+			cleanHTML = cleanHTML[:150000]
 		}
 
-		promo, err = extractWookPromoWithOpenAI(cfg, html)
+		promo, err = extractWookPromoWithOpenAI(cfg, cleanHTML)
 		if err != nil {
 			return "", fmt.Errorf("extract with OpenAI: %w", err)
 		}
@@ -92,6 +98,8 @@ func getWookPromoMessage(cfg Config) (string, error) {
 	if promo == "" || strings.Contains(strings.ToLower(promo), "nenhuma promoção") {
 		return "", nil
 	}
+
+	slog.Info("Current promo: %w", promo);
 
 	return fmt.Sprintf("📚 *WOOK Promoção do Dia*\n\n%s\n\n🔗 https://www.wook.pt", promo), nil
 }
@@ -125,6 +133,15 @@ func fetchWookHTML(timeoutSeconds int) (string, error) {
 }
 
 func extractWookPromoDirectly(html string) string {
+	// First check for explicit common banner texts in the HTML
+	reText := regexp.MustCompile(`(?i)(?:\d+% *(?:<[^>]+>)* *desconto *(?:<[^>]+>)* *· *(?:<[^>]+>)* *Portes Grátis)`)
+	if textMatches := reText.FindStringSubmatch(html); len(textMatches) > 0 {
+		// Clean up HTML tags inside the match
+		cleanText := regexp.MustCompile(`<[^>]+>`).ReplaceAllString(textMatches[0], "")
+		cleanText = strings.ReplaceAll(cleanText, "&nbsp;", " ")
+		return cleanText
+	}
+
 	reImg := regexp.MustCompile(`(?i)<img[^>]*>`)
 	reAlt := regexp.MustCompile(`(?i)alt=["']([^"']+)["']`)
 
