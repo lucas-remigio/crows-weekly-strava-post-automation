@@ -156,6 +156,10 @@ func handleWookCommand(cfg Config, chatID int64, client *http.Client) {
 		return
 	}
 
+	doWookCheck(cfg, chatStr, client)
+}
+
+func doWookCheck(cfg Config, chatStr string, client *http.Client) {
 	_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "⏳ A verificar a Wook em tempo real (isto pode demorar uns segundos)...")
 
 	msg, err := getWookPromoMessage(cfg)
@@ -181,6 +185,10 @@ func handleFnacCommand(cfg Config, chatID int64, client *http.Client) {
 		return
 	}
 
+	doFnacCheck(cfg, chatStr, client)
+}
+
+func doFnacCheck(cfg Config, chatStr string, client *http.Client) {
 	_ = sendToOne(client, cfg.TelegramBotToken, chatStr, "⏳ A verificar a Fnac em tempo real (isto pode demorar uns segundos)...")
 
 	msg, err := getFnacPromoMessage(cfg)
@@ -198,7 +206,15 @@ func handleFnacCommand(cfg Config, chatID int64, client *http.Client) {
 }
 
 func handleLibrariesCommand(cfg Config, chatID int64, client *http.Client) {
+	chatStr := strconv.FormatInt(chatID, 10)
+
+	allowed, waitMins := tryConsumeRateLimit(chatID)
+	if !allowed {
+		_ = sendToOne(client, cfg.TelegramBotToken, chatStr, fmt.Sprintf("⏳ Por favor, aguarde %d minuto(s) antes de pedir uma nova verificação.", waitMins))
+		return
+	}
+
 	// Let Wook and Fnac handles run concurrently
-	go handleWookCommand(cfg, chatID, client)
-	go handleFnacCommand(cfg, chatID, client)
+	go doWookCheck(cfg, chatStr, client)
+	go doFnacCheck(cfg, chatStr, client)
 }
