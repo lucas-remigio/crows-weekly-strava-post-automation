@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -66,40 +67,41 @@ func getWookPromoMessage(cfg Config) (string, error) {
 		return "", fmt.Errorf("fetch Wook HTML: %w", err)
 	}
 
-	// 1. Try direct extraction first to save OpenAI costs
-	promo := extractWookPromoDirectly(html)
+	_ = os.WriteFile("wook_debug.html", []byte(html), 0644)
+	slog.Info("Fetched Wook HTML", "length", len(html), "file", "wook_debug.html")
 
-	// 2. If direct extraction fails, fallback to OpenAI
-	if promo == "" {
-		slog.Info("Direct HTML extraction found no promo. Falling back to OpenAI...")
+	if cfg.OpenAIAPIKey == "" {
+		return "", fmt.Errorf("No OPENAI_API_KEY configured")
+	}
 
-		if cfg.OpenAIAPIKey == "" {
-			return "", fmt.Errorf("No OPENAI_API_KEY configured for fallback")
-		}
+	// Strip scripts and styles to save tokens and avoid truncation of real content
+	reScript := regexp.MustCompile(`(?is)<script.*?>.*?</script>`)
+	reStyle := regexp.MustCompile(`(?is)<style.*?>.*?</style>`)
+	cleanHTML := reScript.ReplaceAllString(html, "")
+	cleanHTML = reStyle.ReplaceAllString(cleanHTML, "")
 
-		// Strip scripts and styles to save tokens and avoid truncation of real content
-		reScript := regexp.MustCompile(`(?is)<script.*?>.*?</script>`)
-		reStyle := regexp.MustCompile(`(?is)<style.*?>.*?</style>`)
-		cleanHTML := reScript.ReplaceAllString(html, "")
-		cleanHTML = reStyle.ReplaceAllString(cleanHTML, "")
+	slog.Info("Cleaned HTML (removed scripts/styles)", "old_length", len(html), "new_length", len(cleanHTML))
 
-		// OpenAI has a high token limit for gpt-4o-mini, let's allow up to 150k chars
-		if len(cleanHTML) > 150000 {
-			slog.Info("Trimmed the content of the html")
-			cleanHTML = cleanHTML[:150000]
-		}
+	// OpenAI has a high token limit for gpt-4o-mini, let's allow up to 150k chars
+	limit := 50000
+	if len(cleanHTML) > limit {
+		slog.Info("Trimmed the content of the html to fit OpenAI limit", "limit", limit)
+		cleanHTML = cleanHTML[:limit]
+	}
 
-		promo, err = extractWookPromoWithOpenAI(cfg, cleanHTML)
-		if err != nil {
-			return "", fmt.Errorf("extract with OpenAI: %w", err)
-		}
+	_ = os.WriteFile("wook_debug_clean.html", []byte(cleanHTML), 0644)
+	slog.Info("Ready to call OpenAI", "payload_length", len(cleanHTML), "file", "wook_debug_clean.html")
+
+	promo, err := extractWookPromoWithOpenAI(cfg, cleanHTML)
+	if err != nil {
+		return "", fmt.Errorf("extract with OpenAI: %w", err)
 	}
 
 	if promo == "" || strings.Contains(strings.ToLower(promo), "nenhuma promoção") {
 		return "", nil
 	}
 
-	slog.Info("Current promo: %w", promo);
+	slog.Info("Current promo found", "promo", promo)
 
 	return fmt.Sprintf("📚 *WOOK Promoção do Dia*\n\n%s\n\n🔗 https://www.wook.pt", promo), nil
 }
@@ -132,42 +134,15 @@ func fetchWookHTML(timeoutSeconds int) (string, error) {
 	return string(bodyBytes), nil
 }
 
-func extractWookPromoDirectly(html string) string {
-	// First check for explicit common banner texts in the HTML
-	reText := regexp.MustCompile(`(?i)(?:\d+% *(?:<[^>]+>)* *desconto *(?:<[^>]+>)* *· *(?:<[^>]+>)* *Portes Grátis)`)
-	if textMatches := reText.FindStringSubmatch(html); len(textMatches) > 0 {
-		// Clean up HTML tags inside the match
-		cleanText := regexp.MustCompile(`<[^>]+>`).ReplaceAllString(textMatches[0], "")
-		cleanText = strings.ReplaceAll(cleanText, "&nbsp;", " ")
-		return cleanText
-	}
-
-	reImg := regexp.MustCompile(`(?i)<img[^>]*>`)
-	reAlt := regexp.MustCompile(`(?i)alt=["']([^"']+)["']`)
-
-	imgs := reImg.FindAllString(html, -1)
-	for _, img := range imgs {
-		altMatches := reAlt.FindStringSubmatch(img)
-		if len(altMatches) > 1 {
-			altLower := strings.ToLower(altMatches[1])
-			if strings.Contains(altLower, "desconto") || strings.Contains(altLower, "portes") || strings.Contains(altLower, "campanha") || strings.Contains(altLower, "promo") {
-				return altMatches[1]
-			}
-		}
-	}
-	return ""
-}
-
 func extractWookPromoWithOpenAI(cfg Config, html string) (string, error) {
 	systemPrompt := "És um assistente útil e focado na extração de dados."
 	userPrompt := fmt.Sprintf(
-		"Aqui está o código HTML (ou parte dele) da página inicial da livraria Wook (wook.pt). "+
-			"A tua tarefa é encontrar qual é a promoção ou campanha principal que está em destaque no banner principal ou carrosel "+
-			"(por exemplo 'Portes grátis', '20%% de desconto em todo o site', etc). "+
-			"Procura em atributos 'alt' de imagens, textos de banners, ou metadados.\n"+
-			"Responde APENAS com o texto da promoção de forma clara e concisa. "+
+		"Aqui está o código HTML limpo da página inicial da livraria Wook (wook.pt). "+
+			"A tua tarefa é extrair TODAS as promoções, campanhas e ofertas especiais em destaque (por exemplo, no carrossel principal, banners, etc).\n"+
+			"Apresenta as campanhas em formato de lista (bullet points), de forma limpa, direta e atraente.\n"+
+			"Ignora livros individuais que só têm o desconto normal, foca-te nas campanhas agregadoras (ex: 'Livros Escolares 5%% imediato', '3 Livros de bolso = 1 Toalha', 'Portes Grátis', etc).\n"+
 			"Se não encontrares nenhuma promoção clara no HTML fornecido, responde apenas 'Nenhuma promoção encontrada'.\n\n"+
 			"HTML:\n%s", html)
 
-	return callOpenAI(cfg, systemPrompt, userPrompt, 150, 0.3)
+	return callOpenAI(cfg, systemPrompt, userPrompt, 400, 0.3)
 }
