@@ -75,6 +75,7 @@ jobs:
             export GOOGLE_SHEET_ID='${{ secrets.GOOGLE_SHEET_ID }}'
             export TELEGRAM_BOT_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}'
             export TELEGRAM_CHAT_IDS='${{ secrets.TELEGRAM_CHAT_IDS }}'
+            export WOOK_TELEGRAM_CHAT_ID='${{ secrets.WOOK_TELEGRAM_CHAT_ID }}'
             export OPENAI_API_KEY='${{ secrets.OPENAI_API_KEY }}'
             export ANNUAL_GOAL_KM='${{ vars.ANNUAL_GOAL_KM }}'
             export SPORT_TYPES='${{ vars.SPORT_TYPES }}'
